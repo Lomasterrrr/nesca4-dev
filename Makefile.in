@@ -1,0 +1,24 @@
+TARGET    = nesca4
+CC        = @CXX@
+CFLAGS    = @CFLAGS@ @OCFLAGS@
+SRCS      = nesca4.cc nescaprint.cc nescadata.cc nescaengine.cc
+OBJS      = $(SRCS:.cc=.o)
+LIBNCSNET = libncsnet/libncsnet.a
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS) $(LIBNCSNET)
+	$(CXX) $^ -o $@ $(CFLAGS)
+
+%.o: %.cc
+	$(CXX) -c $< -o $@ $(CFLAGS)
+
+$(LIBNCSNET):
+	cd "libncsnet/";make -j;cd ..
+
+clean:
+	rm -rf *.o;cd libncsnet;make clean;cd ..;rm $(TARGET)
+	rm -rf config.h config.status config.log autom4te.cache Makefile
+
+.PHONY: all clean
+
