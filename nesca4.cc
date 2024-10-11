@@ -26,8 +26,6 @@
 #include "include/nescabrute.h"
 #include "include/nescaprint.h"
 #include "include/nescaengine.h"
-#include <cstdio>
-#include <sys/select.h>
 
 NESCAPRINT  ncsprint;
 NESCABRUTE  ncsbrute;
@@ -75,30 +73,22 @@ int nesca4(void)
   while (i<total) {
     grouplen=std::min<size_t>(group, total-i);
     grouplen=std::min<size_t>(grouplen, groupmax);
-
     if (ncsdata.opts.check_stats_flag())
       ncsprint.nescastats(grouplen, total, i);
-
     realgroup=ncsdata.rawtargets.unload(grouplen);
     for (const auto&t:realgroup)
       ncsdata.add_target(t);
 
+    /* LOOP */
     if (!ncsdata.opts.check_n_ping_flag())
       _NESCAENGINE_ ping(&ncsdata, 1);
+    else ncsdata.set_all_targets_ok();
     if (!ncsdata.opts.check_n_flag())
-      _NESCARESOLV_(ncsdata.targets, &ncsdata);
+      _NESCARESOLV_(ncsdata.get_oktargets(), &ncsdata);
     if (!ncsdata.opts.check_sn_flag())
       _NESCAENGINE_ scan(&ncsdata, 0);
-
-    for (auto t:ncsdata.targets)
-      if (t->isok())
-        ncsdata.ok++;
-    for (auto t:ncsdata.targets) {
-      ncsprint.nescatarget(t, 1);
-      if (t->openports())
-        putchar('\n');
-      ncsdata.tmplast=(t->openports())?0:1;
-    }
+    ncsprint.PRINTTARGETS(&ncsdata);
+    /* LOOP */
 
     i+=grouplen;
     group+=groupplus;

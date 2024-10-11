@@ -90,22 +90,10 @@ std::string NESCAPRINT::is_service(NESCAPORT *port)
 
 std::string NESCAPRINT::portblock(NESCAPORT *port, bool onlyok)
 {
-  std::string res, p, s, m, srv;
+  std::string res, p, s, m, srv, num;
 
   res="";
-  if (onlyok)
-#define C(x) (port->method==(x))
-    if ((((C(M_TCP_SYN_SCAN))||C(M_UDP_SCAN)||
-        C(M_SCTP_INIT_SCAN)||C(M_TCP_WINDOW_SCAN))
-          &&port->state!=PORT_OPEN)
-       ||((C(M_TCP_ACK_SCAN)&&port->state!=PORT_NO_FILTER))
-       ||((C(M_TCP_MAIMON_SCAN)&&port->state!=PORT_OPEN_OR_FILTER))
-       ||((C(M_TCP_XMAS_SCAN)||C(M_TCP_FIN_SCAN)||
-         C(M_TCP_PSH_SCAN)||C(M_TCP_NULL_SCAN))
-        &&port->state!=PORT_OPEN_OR_FILTER)
-       ||((C(M_SCTP_COOKIE_SCAN))&&port->state!=PORT_CLOSED))
-      return "";
-#undef C
+  if (onlyok) if (!isokport(port)) return "";
 
   res+='\'';
   switch (port->proto) {
@@ -138,12 +126,15 @@ std::string NESCAPRINT::portblock(NESCAPORT *port, bool onlyok)
     default: m="???"; break;
   }
 
+  num=(port->num>1)?"/"+std::to_string(port->num):"";
   srv=is_service(port);
+
   res+=std::to_string(port->port)+"/";
   res+=p+"/";
   res+=s+"/";
   res+=srv+"(";
   res+=m+")";
+  res+=num;
   res+='\'';
 
   return res;
@@ -164,6 +155,11 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok)
   if (target->get_num_time()>0)
     for (i=0;i<target->get_num_time();i++)
       methodstr+=strmethod(target->get_type_time(i));
+  if (target->get_num_port()>0)
+    for (i=0;i<target->get_num_port();i++)
+      methodstr+=strmethod(target->get_port(i).method);
+  methodstr.erase(std::unique(methodstr.begin(),
+    methodstr.end()), methodstr.end());
   methodstr+="'";
 
   std::cout << "Report nesca4 for ";
@@ -193,19 +189,33 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok)
   }
   putchar('\n');
   if (target->get_num_port()>0) {
+    target->removedublports();
     if (onlyok&&!target->openports())
       return;
     for (i=0;i<target->get_num_port();i++) {
       NESCAPORT p=target->get_port(i);
+      if (onlyok&&!isokport(&p))
+        continue;
       block+=portblock(&p, onlyok);
-      if (i!=target->get_num_port()-1&&!block.empty()&&block.length()>1)
-        block+=',';
+      block+=',';
     }
+    block.pop_back();
     if (!block.empty()) {
-      std::cout << "\n  ports ";
+      std::cout << "\n  ports  ";
       std::cout << block;
     }
     putchar('\n');
+  }
+}
+
+void NESCAPRINT::PRINTTARGETS(NESCADATA *ncsdata)
+{
+  for (const auto&t:ncsdata->targets) {
+    this->nescatarget(t, 1);
+    if (t->openports())
+      putchar('\n');
+    ncsdata->tmplast=(t->openports())?0:1;
+    if (t->isok()) ncsdata->ok++;
   }
 }
 
@@ -321,7 +331,7 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -pr, -pe, -pi, -pm: use ARP or ICMP ping ECHO/INFO/TIMESTAMP\n";
   std::cout << "  -all-ping: use all ping methods\n";
   std::cout << "  -wait-ping <time>: set your max wait time for ping (timeout)\n";
-  std::cout << "  -num-ping: set count ping probes\n";
+  std::cout << "  -num-ping <num>: set count ping probes\n";
   std::cout << "  -n-ping: skip ping scan, disable ping\n";
   std::cout << "PORTSCAN\n";
   std::cout << "  -xmas, -fin, -psh, -null: use one of these scanning methods.\n";
@@ -329,6 +339,7 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -init, -cookie, -udp: use init, cookie SCTP, or UDP port scan method.\n";
   std::cout << "  -all-scan: use all scan port methods.\n";
   std::cout << "  -wait-scan <time>: set your max wait time for scan (timeout)\n";
+  std::cout << "  -num-scan <num>: set count scan probes\n";
   std::cout << "  -mtpl-scan <multiplier>: set your multiplier for calc scan timeout\n    Nb: <rtt> * <mult> = timeout\n";
   std::cout << "  -p <ports>: set ports for scan,\n    Ex: -p 80; -p 80,443; -p S:40-50,U:3,T:33,10-15\n";
   std::cout << "  -sn, -n-scan: skip port scan, disable port scan.\n";

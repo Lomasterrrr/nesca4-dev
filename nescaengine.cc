@@ -46,12 +46,21 @@
 #include <cstddef>
 #include <cstdlib>
 #include <exception>
+#include <limits>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
+#include <sys/resource.h>
+
+static int maxfds(void)
+{
+  struct rlimit limit;
+  getrlimit(RLIMIT_NOFILE, &limit);
+  return limit.rlim_cur;
+}
 
 static std::mutex stoprecv;
 
@@ -63,9 +72,6 @@ bool NESCARESOLV_try(NESCATARGET *target, NESCADATA *ncsdata)
   struct sockaddr_in *sa=NULL;
   int len=0, ret=0;
   const char *ip;
-
-  if (!target->isok())
-    return 0;
 
   memset(&addr, 0, sizeof(addr));
   ip=target->get_mainip().c_str();
@@ -100,6 +106,13 @@ bool _NESCARESOLV_(std::vector<NESCATARGET*> targets, NESCADATA *ncsdata)
   size_t threads=targets.size();
   bool success=1;
   size_t i=0;
+
+  if (ncsdata->opts.check_stats_flag()) {
+    std::cout << "NESCARESOLV ";
+    std::cout << "for " << targets.size() << " targets ";
+    std::cout << " (and ..., \?\?\?)";
+    std::cout << std::endl;
+  }
 
   futures.reserve(threads);
   NESCAPOOL pool(threads);
@@ -379,6 +392,7 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
       return (bool)__received_icmp_error(frame, frmlen, arg, proto);
   }
 
+
   /* Filter */
   if (proto!=a->proto)
     return 0;
@@ -603,6 +617,7 @@ NESCAINIT::NESCAINIT(NESCADATA *ncsdata, bool ping)
   ni_initsendfd(&ncsdata->dev);
   ni_initmethods(&ncsdata->opts, ping);
   total=last_target=last_method=last_num=0;
+  num=NI_NUM(ncsdata->targets);
 }
 
 size_t NESCAINIT::NI_NUM(std::vector<NESCATARGET*> targets)
@@ -666,12 +681,15 @@ void NESCAINIT::ni_initrecvfd(NESCATARGET *target, NESCADEVICE *ncsdev,
 
   if (ncsopts->check_mtpl_scan_flag()&&!ping&&target->get_num_time()>0) {
     mtpl=atoll(ncsopts->get_mtpl_scan_param().c_str());
-    timeout=target->get_time_ns(0)*mtpl;
+    timeout=(target->get_time_ns(0))*mtpl;
   }
   if (ncsopts->check_wait_scan_flag()&&!ping)
     timeout=(delayconv(ncsopts->get_wait_scan_param().c_str()));
   if (ncsopts->check_wait_ping_flag()&&ping)
     timeout=delayconv(ncsopts->get_wait_ping_param().c_str());
+
+  /* Predicting the time of sending */
+  timeout+=ncsdev->get_send_at();
 
   lr=lr_open(ncsdev->get_device().c_str(), timeout);
   if (ping)
@@ -708,7 +726,7 @@ void NESCAINIT::ni_initmethod(size_t numprobes, int method,
 void NESCAINIT::ni_initmethods(NESCAOPTS *ncsopts, bool ping)
 {
   std::vector<int> tcports, udports, sctports;
-  size_t numtmp;
+  size_t numtmp, numscan;
 
   if (ping)
     goto ping;
@@ -722,28 +740,29 @@ void NESCAINIT::ni_initmethods(NESCAOPTS *ncsopts, bool ping)
       sctports.push_back(port.port);
   }
 
+  numscan=atoll(ncsopts->get_num_scan_param().c_str());
   if (ncsopts->check_syn_flag())
-    ni_initmethod(1, M_TCP_SYN_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_SYN_SCAN, tcports);
   if (ncsopts->check_xmas_flag())
-    ni_initmethod(1, M_TCP_XMAS_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_XMAS_SCAN, tcports);
   if (ncsopts->check_fin_flag())
-    ni_initmethod(1, M_TCP_FIN_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_FIN_SCAN, tcports);
   if (ncsopts->check_null_flag())
-    ni_initmethod(1, M_TCP_NULL_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_NULL_SCAN, tcports);
   if (ncsopts->check_psh_flag())
-    ni_initmethod(1, M_TCP_PSH_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_PSH_SCAN, tcports);
   if (ncsopts->check_window_flag())
-    ni_initmethod(1, M_TCP_WINDOW_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_WINDOW_SCAN, tcports);
   if (ncsopts->check_ack_flag())
-    ni_initmethod(1, M_TCP_ACK_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_ACK_SCAN, tcports);
   if (ncsopts->check_maimon_flag())
-    ni_initmethod(1, M_TCP_MAIMON_SCAN, tcports);
+    ni_initmethod(numscan, M_TCP_MAIMON_SCAN, tcports);
   if (ncsopts->check_init_flag())
-    ni_initmethod(1, M_SCTP_INIT_SCAN, sctports);
+    ni_initmethod(numscan, M_SCTP_INIT_SCAN, sctports);
   if (ncsopts->check_cookie_flag())
-    ni_initmethod(1, M_SCTP_COOKIE_SCAN, sctports);
+    ni_initmethod(numscan, M_SCTP_COOKIE_SCAN, sctports);
   if (ncsopts->check_udp_flag())
-    ni_initmethod(1, M_UDP_SCAN, udports);
+    ni_initmethod(numscan, M_UDP_SCAN, udports);
   /* ..., */
 
   return;
@@ -1143,7 +1162,6 @@ bool NESCAINIT::NI_INIT(std::vector<NESCATARGET*> targets,
   for (j=this->last_target;j<targets.size();j++,this->last_target=j) {
     for (k=this->last_method;k<ni_methods.size();k++,this->last_method=k) {
       for (i=this->last_num;i<=ni_methods[k].numprobes-1;i++,this->last_num=i) {
-
         /* result init */
         ni_initres(targets[j], &ni_methods[k]);
 
@@ -1249,6 +1267,17 @@ void NESCASEND::ns_stats(void)
   std::cout << " > " << util_pps(this->tstamp_s, this->tstamp_e,
     tot) << std::endl;
   stoprecv.unlock();
+  ok=err=sendbytes=tot=0;
+}
+
+long long NESCASEND::ns_ns(void)
+{
+  long long start_ns, end_ns;
+  start_ns=static_cast<long long>(this->tstamp_s.tv_sec)*1000000000LL+
+    static_cast<long long>(this->tstamp_s.tv_usec)*1000LL;
+  end_ns=static_cast<long long>(this->tstamp_e.tv_sec)*1000000000LL+
+    static_cast<long long>(this->tstamp_e.tv_usec)*1000LL;
+  return ((end_ns-start_ns)/this->tot);
 }
 
 NESCARECV::NESCARECV(void)
@@ -1270,6 +1299,7 @@ void NESCARECV::nr_stats(void)
   std::cout << " > " << util_pps(this->tstamp_s, this->tstamp_e,
     tot) << std::endl;
   stoprecv.unlock();
+  ok=err=recvbytes=tot=0;
 }
 
 void NESCARECV::nr_setstats(void)
@@ -1412,15 +1442,6 @@ std::string NESCAINIT::ni_method(void)
   return res;
 }
 
-#include <sys/resource.h>
-
-static int maxfds(void)
-{
-  struct rlimit limit;
-  getrlimit(RLIMIT_NOFILE, &limit);
-  return limit.rlim_cur;
-}
-
 void _NESCAENGINE_::NE_CONFIGURE(NESCADATA *ncsdata, bool ping)
 {
   size_t pps;
@@ -1434,52 +1455,34 @@ void _NESCAENGINE_::NE_CONFIGURE(NESCADATA *ncsdata, bool ping)
     nr_setstats();
     std::cout << "NESCAENGINE ";
     std::cout << ((ping)?"Ping for ":"Scan for ")
-      << ncsdata->targets.size() << " targets";
+      << forscan.size() << " targets";
     std::cout << " (" << ni_method() << ") methods" << std::endl;
   }
-
-  this->grouplen=(NI_NUM(ncsdata->targets)/ncsdata->targets.size());
-  __maxfds=(!ncsdata->opts.check_maxfds_flag())?(maxfds()-100):
-    atoll(ncsdata->opts.get_maxfds_param().c_str());
-  __maxfds=(__maxfds<this->grouplen)?this->grouplen:__maxfds;
-  this->grouplen=((__maxfds)/this->grouplen);
 }
 
-void _NESCAENGINE_::NE_GROUPS(NESCADATA *ncsdata)
+_NESCAENGINE_::_NESCAENGINE_(NESCADATA *ncsdata, bool ping) : NESCAINIT(ncsdata, ping)
 {
-  size_t i=0;
-  for (;i<ncsdata->targets.size();i+=grouplen) {
-    std::vector<NESCATARGET*> group(ncsdata->targets.begin()+i,
-      ncsdata->targets.begin()+std::min(ncsdata->targets.size(),i+grouplen));
-    this->groups.push_back(group);
-  }
-}
-
-_NESCAENGINE_::_NESCAENGINE_(NESCADATA *ncsdata, bool ping) : NESCAINIT(ncsdata, ping), NESCASEND(),
-                                                              NESCARECV(), NESCAREAD()
-{
+  forscan=((!ping)?ncsdata->get_oktargets():ncsdata->targets);
   NE_CONFIGURE(ncsdata, ping);
-  NE_GROUPS(ncsdata);
 
-  for (i=0;i<groups.size();++i) {
-    ret=NI_INIT(groups[i], ncsdata, ping,
-      (!ncsdata->opts.check_maxfds_flag())?(maxfds()-100)
-      :atoll(ncsdata->opts.get_maxfds_param().c_str()));
+ loop:
+  ret=NI_INIT(forscan, ncsdata, ping,
+    (!ncsdata->opts.check_maxfds_flag())?(maxfds()-20)
+    :atoll(ncsdata->opts.get_maxfds_param().c_str()));
 
-    std::thread recv_thread([&](void) {
-      nr_recv(ni_recvfds(), ni_probes(), ni_results());
-    });
+  std::thread recv_thread([&](void) {
+    nr_recv(ni_recvfds(), ni_probes(), ni_results());
+  });
 
-    std::thread send_thread([&](void) {
-      ns_send(ni_sendfd(), ni_probes(), ni_probes().size());
-    });
+  std::thread send_thread([&](void) {
+    ns_send(ni_sendfd(), ni_probes(), ni_probes().size());
+  });
 
-    recv_thread.join();
-    send_thread.join();
+  recv_thread.join();
+  send_thread.join();
 
-    nr_read(ni_results(), ncsdata->targets);
+  nr_read(ni_results(), ncsdata->targets);
 
-    NI_CLEAR();
-    if (!ret) i--;
-  }
+  NI_CLEAR();
+  if (!ret) goto loop;
 }

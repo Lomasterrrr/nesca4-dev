@@ -189,7 +189,7 @@ class NESCAINIT
     std::vector<int> ports;
   };
   std::vector<NESCAMETHOD>  ni_methods;
-  size_t                    total, last_target,
+  size_t                    num, total, last_target,
                             last_method, last_num;
 
   void ni_initsendfd(NESCADEVICE *ncsdev);
@@ -263,6 +263,7 @@ class NESCASEND
   void ns_send(eth_t *fd, std::vector<NESCAPROBE*> probes, size_t num);
   void ns_setpps(size_t pps);
   void ns_setstats(void);
+  long long ns_ns(void);
 };
 
 class NESCAREAD
@@ -275,10 +276,8 @@ class NESCAREAD
 class _NESCAENGINE_ : public NESCASEND, public NESCAINIT,
                       public NESCARECV, public NESCAREAD
 {
-  std::vector<std::vector<NESCATARGET*>> groups;
-  size_t grouplen, i, __maxfds;
+  std::vector<NESCATARGET*> forscan;
   bool ret;
-
   void NE_CONFIGURE(NESCADATA *ncsdata, bool ping);
   void NE_GROUPS(NESCADATA *ncsdata);
 

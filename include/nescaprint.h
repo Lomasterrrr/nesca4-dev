@@ -54,4 +54,5 @@ class NESCAPRINT
   void nescatarget(NESCATARGET *target, bool onlyok);
   void nescadevice(NESCADEVICE *device);
   void nescastats(size_t grouplen, __uint128_t total, __uint128_t i);
+  void PRINTTARGETS(NESCADATA *ncsdata);
 };

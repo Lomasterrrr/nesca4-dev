@@ -112,6 +112,7 @@
 #define IDOPT_STATS     48
 #define IDOPT_MAXFDS    49
 #define IDOPT_ALL_SCAN  50
+#define IDOPT_NUM_SCAN  51
 
 #define SPLITOPT_DEL    ','
 
@@ -166,7 +167,7 @@ struct NESCASERVICE {
  */
 struct NESCAPORT {
   std::vector<NESCASERVICE> services;
-  int state, method, proto, port;
+  int state, method, proto, port, num;
 };
 
 
@@ -192,11 +193,9 @@ public:
   void add_ip(const std::string &ip);
   void add_dns(const std::string &dns);
   void add_mac(const std::string &mac);
-
   void add_port(int state, int method, int proto, int port);
   NESCAPORT get_port(size_t id);
   size_t get_num_port(void);
-
   std::string get_mac(void);
   size_t get_num_ip(void);
   size_t get_num_dns(void);
@@ -209,7 +208,9 @@ public:
   size_t get_num_time(void);
   size_t get_type_time(size_t id);
   void set_ok(void);
+  void set_no_ok(void);
   bool isok(void);
+  void removedublports(void);
 };
 
 struct _cfgopt {
@@ -327,6 +328,9 @@ class NESCAOPTS
   std::string maxfds_param;
 
   bool all_scan_flag;
+
+  bool num_scan_flag;
+  std::string num_scan_param;
 
   std::vector<_cfgopt> opts;
   std::string cfgpath;
@@ -496,9 +500,13 @@ public:
   void        set_maxfds_param(const std::string &maxfds_param);
   std::string get_maxfds_param(void);
   bool        check_maxfds_flag(void);
-
   void        set_all_scan_flag(void);
   bool        check_all_scan_flag(void);
+
+  void        set_num_scan_flag(void);
+  void        set_num_scan_param(const std::string &num_scan_param);
+  std::string get_num_scan_param(void);
+  bool        check_num_scan_flag(void);
 };
 
 
@@ -636,6 +644,7 @@ class NESCADEVICE
   ip4_t        srcip4, gateway4;
   ip6_t        srcip6, gateway6;
   bool         ip6=0, ip4=0;
+  long long    send_at=0; /* time need for one sent */
 
   std::string getfileln(const std::string &path);
   std::vector<std::string> find_devices(void);
@@ -647,6 +656,7 @@ class NESCADEVICE
   bool srcip4_at_all_costs(void);
   bool srcmac_at_all_costs(void);
   bool dstmac4_at_all_costs(void);
+  void set_send_at(void);
 
   /* XXX */
   bool dstmac6_at_all_costs(void);
@@ -670,6 +680,7 @@ public:
   void        set_gateway6(const std::string &ip6);
   bool        check_ipv6(void);
   bool        check_ipv4(void);
+  long long   get_send_at(void);
 };
 
 
@@ -692,6 +703,8 @@ public:
 
 
   void add_target(const std::string &ip);
+  std::vector<NESCATARGET*> get_oktargets(void);
+  void set_all_targets_ok(void);
   void clear_targets(void);
 };
 
@@ -704,6 +717,7 @@ std::string util_timediff(const struct timeval& start,
     const struct timeval& end);
 std::string util_pps(const struct timeval& start,
     const struct timeval& end, size_t total);
+bool isokport(NESCAPORT *p);
 
 
 #endif
