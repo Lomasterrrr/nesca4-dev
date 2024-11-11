@@ -49,10 +49,19 @@ class NESCAPRINT
   void run(void);
   void usage(int argc, char **argv);
   void error(const std::string &err);
+  void warning(const std::string &warn);
   void finish(NESCADATA *ncsdata);
 
   void nescatarget(NESCATARGET *target, bool onlyok);
   void nescadevice(NESCADEVICE *device);
   void nescastats(size_t grouplen, __uint128_t total, __uint128_t i);
   void PRINTTARGETS(NESCADATA *ncsdata);
+};
+
+class NESCAHTML
+{
+
+public:
+  void nh_init(void);
+  void nh_updt(NESCADATA *ncsdata);
 };

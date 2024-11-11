@@ -23,12 +23,11 @@
 */
 
 #include "include/nescadata.h"
-#include "include/nescabrute.h"
+#include "include/nescaservices.h"
 #include "include/nescaprint.h"
 #include "include/nescaengine.h"
 
 NESCAPRINT  ncsprint;
-NESCABRUTE  ncsbrute;
 NESCADATA   ncsdata;
 static int  nesca4(void);
 
@@ -46,9 +45,9 @@ int main(int argc, char **argv)
   ncsdata.opts.args_apply(argc, argv, &ncsdata, &ncsprint);
   if (ncsdata.opts.check_cfg_flag()) {
     ncsdata.opts.cfg_apply(ncsdata.opts.get_cfg_param(), &ncsdata, &ncsprint);
-    /* reapply */
     ncsdata.opts.args_apply(argc, argv, &ncsdata, &ncsprint);
   }
+  ncsdata.opts.opts_validate();
   ncsdata.dev.init(&ncsprint, &ncsdata.opts);
   ncsdata.rawtargets.load(argc, argv, &ncsdata.opts, &ncsprint, &ncsdata.dev);
 
@@ -87,6 +86,7 @@ int nesca4(void)
       _NESCARESOLV_(ncsdata.get_oktargets(), &ncsdata);
     if (!ncsdata.opts.check_sn_flag())
       _NESCAENGINE_ scan(&ncsdata, 0);
+    NESCASERVICES proc(&ncsdata);
     ncsprint.PRINTTARGETS(&ncsdata);
     /* LOOP */
 

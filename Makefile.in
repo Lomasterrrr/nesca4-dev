@@ -1,7 +1,7 @@
 TARGET    = nesca4
 CC        = @CXX@
 CFLAGS    = @CFLAGS@ @OCFLAGS@
-SRCS      = nesca4.cc nescaprint.cc nescadata.cc nescaengine.cc
+SRCS      = nesca4.cc nescaprint.cc nescadata.cc nescaengine.cc nescaservices.cc
 OBJS      = $(SRCS:.cc=.o)
 LIBNCSNET = libncsnet/libncsnet.a
 
@@ -15,6 +15,17 @@ $(TARGET): $(OBJS) $(LIBNCSNET)
 
 $(LIBNCSNET):
 	cd "libncsnet/";make -j;cd ..
+
+install:
+	cp nesca4 /usr/local/bin
+	mkdir /usr/local/share/nesca4
+	cp -r resources config /usr/local/share/nesca4
+	chmod 755 /usr/local/bin/nesca4
+	chmod -R 644 /usr/local/share/nesca4
+
+uninstall:
+	rm /usr/local/bin/nesca4
+	rm -r /usr/local/share/nesca4
 
 clean:
 	rm -rf *.o;cd libncsnet;make clean;cd ..;rm $(TARGET)

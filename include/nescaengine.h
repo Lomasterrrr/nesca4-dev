@@ -239,11 +239,15 @@ class NESCARECV
   bool stats;
 
   void nr_stats(void);
-  void _nr_recv(lr_t *fd, NESCAPROBE *probe, NESCARESULT *result);
+  void _nr_recv(lr_t *fd, NESCAPROBE *probe,
+    NESCARESULT *result);
 
   public:
   NESCARECV(void);
-  void nr_recv(std::vector<lr_t*> fds, std::vector<NESCAPROBE*> probes, std::vector<NESCARESULT*> results);
+  void nr_recv(std::vector<lr_t*> fds,
+    std::vector<NESCAPROBE*> probes,
+    std::vector<NESCARESULT*> results);
+
   std::vector<NESCARESULT> nr_results(void);
   void nr_setstats(void);
 
@@ -260,7 +264,10 @@ class NESCASEND
 
   public:
   NESCASEND(void);
-  void ns_send(eth_t *fd, std::vector<NESCAPROBE*> probes, size_t num);
+  void ns_send(eth_t *fd,
+    std::vector<NESCAPROBE*> probes,
+    size_t num);
+
   void ns_setpps(size_t pps);
   void ns_setstats(void);
   long long ns_ns(void);

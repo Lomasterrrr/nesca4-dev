@@ -1256,7 +1256,8 @@ void NESCASEND::ns_send(eth_t *fd, std::vector<NESCAPROBE*> probes, size_t num)
 
 void NESCASEND::ns_stats(void)
 {
-  double p=(static_cast<double>(err)/tot)*100;
+  double p;
+  p=(static_cast<double>(err)/tot)*100;
   stoprecv.lock();
   std::cout << "NESCASEND  Sent " << util_bytesconv(sendbytes);
   std::cout << " at " << util_timediff(this->tstamp_s,
@@ -1387,7 +1388,6 @@ void NESCAREAD::nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARG
     if (it!=targets.end()) {
       t=*it;
       switch (res->method) {
-
         /* Ping */
         case M_ICMP_PING_ECHO:
         case M_SCTP_INIT_PING:
@@ -1413,7 +1413,8 @@ void NESCAREAD::nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARG
         case M_TCP_WINDOW_SCAN:
         case M_SCTP_INIT_SCAN:
         case M_TCP_ACK_SCAN:
-          res->state=(!res->ok)?PORT_FILTER:res->state; goto add;
+          res->state=(!res->ok)?PORT_FILTER:res->state;
+          goto add;
 
         case M_TCP_XMAS_SCAN:
         case M_TCP_NULL_SCAN:
@@ -1421,8 +1422,7 @@ void NESCAREAD::nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARG
         case M_TCP_PSH_SCAN:
         case M_SCTP_COOKIE_SCAN:
         case M_TCP_MAIMON_SCAN:
-        case M_UDP_SCAN:
-            res->state=(!res->ok)?PORT_OPEN_OR_FILTER:res->state;
+        case M_UDP_SCAN: res->state=(!res->ok)?PORT_OPEN_OR_FILTER:res->state;
 add:
           t->add_port(res->state, res->method, PR_TCP, res->port);
           break;

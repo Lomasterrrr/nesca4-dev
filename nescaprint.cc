@@ -76,7 +76,8 @@ std::string NESCAPRINT::is_service(NESCAPORT *port)
       if (sp!=std::string::npos) {
         fport=std::stoi(portproto.substr(0, sp));
         fproto=portproto.substr(sp + 1);
-        if ((int)fport==port->port&&fproto==((port->proto==6)?"tcp":(port->proto==17)?"udp":"sctp"))
+        if ((int)fport==port->port&&fproto==
+          ((port->proto==6)?"tcp":(port->proto==17)?"udp":"sctp"))
           break;
       }
     }
@@ -343,6 +344,8 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -mtpl-scan <multiplier>: set your multiplier for calc scan timeout\n    Nb: <rtt> * <mult> = timeout\n";
   std::cout << "  -p <ports>: set ports for scan,\n    Ex: -p 80; -p 80,443; -p S:40-50,U:3,T:33,10-15\n";
   std::cout << "  -sn, -n-scan: skip port scan, disable port scan.\n";
+  std::cout << "SERVICES\n";
+  std::cout << "  -s <ports>: set ports for service,\n    Ex: -s http:40-50,ftp:3,rvi:33,10-15\n";
   std::cout << "OTHER\n";
   std::cout << "  -n: no resolv, skip resolution dns names\n";
   std::cout << "  -cfg <path>: set your config file for opts\n";
@@ -371,4 +374,9 @@ void NESCAPRINT::error(const std::string &err)
 {
   std::cout << "err: " << err << std::endl;
   exit(0);
+}
+
+void NESCAPRINT::warning(const std::string &warn)
+{
+  std::cout << "warn: " << warn << std::endl;
 }

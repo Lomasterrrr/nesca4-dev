@@ -28,7 +28,43 @@
 #include <unordered_map>
 
 #include "../libncsnet/ncsnet/sys/types.h"
+#include "nescadata.h"
 
-class NESCABRUTE
+/*
+ * Each class for working with any service must have the
+ * following functions,
+ *
+ * The main function that combines the others,
+ *   void <SERVICE>SERVICE(....)
+ *
+ * To check if the service is available,
+ *   bool check(...)
+ */
+
+class NCSFTPSERVICE
 {
+  protected:
+  bool check(NESCATARGET *target, int port);
+
+  public:
+  void FTPSERVICE(std::map<NESCATARGET*,std::vector<int>> targets,
+    NESCADATA *ncsdata);
 };
+
+class NCSHTTPSERVICE
+{
+  protected:
+
+  public:
+  void HTTPSERVICE(std::map<NESCATARGET*,std::vector<int>> targets,
+    NESCADATA *ncsdata);
+};
+
+class NESCASERVICES : public NCSHTTPSERVICE, public NCSFTPSERVICE
+{
+  std::map<NESCATARGET*, std::vector<int>>
+    forprobe(int service, NESCADATA *ncsdata);
+  public:
+  NESCASERVICES(NESCADATA *ncsdata);
+};
+

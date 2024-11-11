@@ -36,6 +36,7 @@
 #include "include/nescaprint.h"
 #include "libncsnet/ncsnet/linuxread.h"
 #include "libncsnet/ncsnet/mac.h"
+#include "libncsnet/ncsnet/ncsnet.h"
 #include "libncsnet/ncsnet/random.h"
 #include "libncsnet/ncsnet/utils.h"
 #include <bits/types/struct_timeval.h>
@@ -106,7 +107,8 @@ struct option longopts[]={
   {"maxfds", 1, 0, IDOPT_MAXFDS},
   {"all-scan", 0, 0, IDOPT_ALL_SCAN},
   {"num-scan", 1, 0, IDOPT_NUM_SCAN},
-  {"random-ip", 1, 0, IDOPT_RADNOM_IP}
+  {"random-ip", 1, 0, IDOPT_RADNOM_IP},
+  {"s", 1, 0, IDOPT_S}
 };
 
 void NESCAOPTS::opts_init(void)
@@ -167,6 +169,8 @@ void NESCAOPTS::opts_init(void)
   all_scan_flag=0;
   num_scan_flag=0;
   num_scan_param="";
+  s_flag=0;
+  s_param.clear();
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -190,18 +194,6 @@ static std::vector<int> split_string_int(const std::string& str, char del, int m
   return res;
 }
 
-static std::vector<std::string> split_string_string(const std::string& str, char del)
-{
-  std::vector<std::string> res;
-  std::stringstream ss(str);
-  std::string token;
-
-  while (std::getline(ss, token, del))
-    res.push_back(token);
-
-  return res;
-}
-
 bool NESCATARGET::openports(void)
 {
   for (auto&port:this->ports)
@@ -220,6 +212,19 @@ bool NESCATARGET::isok(void)
   return this->ok;
 }
 
+bool NESCATARGET::portcompare(NESCAPORT *first, NESCAPORT *second)
+{
+  if (first->method!=second->method)
+    return 0;
+  if (first->num!=second->num)
+    return 0;
+  if (first->port!=second->port)
+    return 0;
+  if (first->state!=second->state)
+    return 0;
+  return 1;
+}
+
 void NESCATARGET::add_port(int state, int method, int proto, int port)
 {
   NESCAPORT p;
@@ -235,6 +240,41 @@ void NESCATARGET::add_port(int state, int method, int proto, int port)
 NESCAPORT NESCATARGET::get_port(size_t id)
 {
   return this->ports.at(id);
+}
+
+void NESCATARGET::add_service(NESCAPORT *port, int key, const std::string &service,
+  struct timeval tstamp1, struct timeval tstamp2)
+{
+  NESCASERVICE res;
+  res.key=key;
+  res.rtt.tstamp1=tstamp1;
+  res.rtt.tstamp2=tstamp2;
+  res.service=service;
+  res.info.clear();
+  port->services.push_back(res);
+}
+
+void NESCATARGET::add_info_service(NESCAPORT *port, int key, const std::string &info,
+  int infotype)
+{
+  NESCASERVICE *service;
+  NESCAINFO i;
+
+  for (auto s:port->services)
+    if (s.key==key)
+      service=&s;
+
+  i.info=info;
+  i.type=infotype;
+  service->info.push_back(i);
+}
+
+NESCASERVICE NESCATARGET::get_service(NESCAPORT *port, int key)
+{
+  for (const auto&s:port->services)
+    if (s.key==key)
+      return s;
+  return {};
 }
 
 size_t NESCATARGET::get_num_port(void)
@@ -468,6 +508,7 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_MAXFDS:    set_maxfds_flag();     set_maxfds_param(val);                   break;
     case IDOPT_ALL_SCAN:  set_all_scan_flag();                                            break;
     case IDOPT_NUM_SCAN:  set_num_scan_flag();   set_num_scan_param(val);                 break;
+    case IDOPT_S:         set_s_flag();          set_s_param(val);                        break;
 
   }
 }
@@ -1117,7 +1158,12 @@ bool NESCAOPTS::check_n_ping_flag(void) { return this->n_ping_flag; }
  * -wait-ping <wait_ping_param>
  */
 void NESCAOPTS::set_wait_ping_flag(void) { this->wait_ping_flag=1; }
-void NESCAOPTS::set_wait_ping_param(const std::string &wait_ping_param) { this->wait_ping_param=wait_ping_param; }
+void NESCAOPTS::set_wait_ping_param(const std::string &wait_ping_param)
+{
+  this->wait_ping_param=wait_ping_param;
+  if (delayconv(get_wait_ping_param().c_str())<=1)
+    ncsprint->warning("a timeout of 1 or 0 nanoseconds is unlikely to accept packets");
+}
 std::string NESCAOPTS::get_wait_ping_param(void) { return this->wait_ping_param; }
 bool NESCAOPTS::check_wait_ping_flag(void) { return this->wait_ping_flag; }
 
@@ -1342,7 +1388,12 @@ bool NESCAOPTS::check_udp_flag(void) { return this->udp_flag; }
  * -wait-scan <wait_scan_param>
  */
 void NESCAOPTS::set_wait_scan_flag(void) { this->wait_scan_flag=1; }
-void NESCAOPTS::set_wait_scan_param(const std::string &wait_scan_param) { this->wait_scan_param=wait_scan_param; }
+void NESCAOPTS::set_wait_scan_param(const std::string &wait_scan_param)
+{
+  this->wait_scan_param=wait_scan_param;
+  if (delayconv(get_wait_scan_param().c_str())<=1)
+    ncsprint->warning("a timeout of 1 or 0 nanoseconds is unlikely to accept packets");
+}
 std::string NESCAOPTS::get_wait_scan_param(void) { return this->wait_scan_param; }
 bool NESCAOPTS::check_wait_scan_flag(void) { return this->wait_scan_flag; }
 
@@ -1412,6 +1463,60 @@ bool NESCAOPTS::check_num_scan_flag(void) { return this->num_scan_flag; }
 
 
 /*
+ * -s <s_param>
+ */
+void NESCAOPTS::set_s_flag(void) { this->s_flag=1; }
+void NESCAOPTS::set_s_param(const std::string &s_param)
+{
+  std::stringstream ss(s_param);
+  size_t rem=0, isrange=0;
+  std::vector<int> tmp;
+  std::string token;
+  int service=0;
+
+  while (std::getline(ss, token, SPLITOPT_DEL)) {
+
+    if (!isdigit(token[0])) {
+      rem=0;
+      if (!find_word(token.c_str(), "http")) {
+        service=S_HTTP;
+        rem=(std::string("http").length());
+      }
+      if (!find_word(token.c_str(), "ftp")) {
+        service=S_FTP;
+        rem=(std::string("ftp").length());
+      }
+      rem++;
+      token.erase(0,rem);
+    }
+
+    /* is port range */
+    isrange=token.find('-');
+    if (isrange!=std::string::npos) {
+      tmp=__portrange(token);
+
+      /* add ports */
+      for (const auto&p:tmp) {
+        NESCAPORT port={};
+        port.port=p;
+        port.proto=service;
+        this->s_param.push_back(port);
+      }
+    }
+    /* is port */
+    else {
+      NESCAPORT port={};
+      port.port=std::stoi(token);
+      port.proto=service;
+      this->s_param.push_back(port);
+    }
+  }
+}
+std::vector<NESCAPORT> NESCAOPTS::get_s_param(void) { return this->s_param; }
+bool NESCAOPTS::check_s_flag(void) { return this->s_flag; }
+
+
+/*
  * It searches the longopts array, looks for the <opt> option, if it finds it,
  * checks if it has a parameter, if so, it returns true, otherwise it returns
  * false.
@@ -1427,6 +1532,51 @@ bool NESCAOPTS::is_requiread_options(const std::string &opt)
     }
   }
   return false;
+}
+
+
+/*
+ * Check options.
+ */
+void NESCAOPTS::opts_validate(void)
+{
+  bool ret;
+  if (check_syn_flag()||check_xmas_flag()||
+      check_fin_flag()||check_ack_flag()||
+      check_psh_flag()||check_null_flag()||
+      check_window_flag()||check_maimon_flag()||
+      check_udp_flag()||check_init_flag()||
+      check_cookie_flag()) {
+    if (!check_p_flag())
+      ncsprint->error("please specify ports (Ex: -p 80,443)");
+    if (check_udp_flag()) {
+      ret=0;
+      for (const auto&p:this->p_param)
+        if (p.proto==PR_UDP)
+          ret=1;
+      if (!ret)
+        ncsprint->error("please specify UDP ports (Ex: -p U:80,443)");
+    }
+    if (check_init_flag()||check_cookie_flag()) {
+      ret=0;
+      for (const auto&p:this->p_param)
+        if (p.proto==PR_SCTP)
+          ret=1;
+      if (!ret)
+        ncsprint->error("please specify SCTP ports (Ex: -p S:80,443)");
+    }
+    if (check_syn_flag()||check_xmas_flag()||
+        check_fin_flag()||check_ack_flag()||
+        check_psh_flag()||check_null_flag()||
+        check_window_flag()||check_maimon_flag()) {
+      ret=0;
+      for (const auto&p:this->p_param)
+        if (p.proto==PR_TCP)
+          ret=1;
+      if (!ret)
+        ncsprint->error("please specify TCP ports (Ex: -p T:80,443)");
+    }
+  }
 }
 
 
@@ -1700,6 +1850,8 @@ void NESCARAWTARGETS::processing(const std::vector<std::string> &targets)
       char ip4buf[16];
       if ((ip4_util_strdst(target.c_str(), ip4buf, 16))!=-1)
         this->ipv4.push_back(ip4buf);
+      else
+        ncsprint->warning("failed resolve \""+target+"\" ("+std::strerror(errno)+")");
     }
   }
 }
@@ -3234,8 +3386,8 @@ std::string util_timediff(const struct timeval& start,
     const struct timeval& end)
 {
   const char *prefixes[]={
-    "ns", "μs", "ms", "s",
-    "m", "h"
+    "ns", "μs", "ms", "sec",
+    "min", "h"
   };
   long long s, mc, tot;
   double val;
@@ -3327,3 +3479,4 @@ bool isokport(NESCAPORT *p)
   }
   return 0;
 }
+
