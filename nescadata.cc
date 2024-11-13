@@ -108,6 +108,7 @@ struct option longopts[]={
   {"all-scan", 0, 0, IDOPT_ALL_SCAN},
   {"num-scan", 1, 0, IDOPT_NUM_SCAN},
   {"random-ip", 1, 0, IDOPT_RADNOM_IP},
+  {"detal", 0, 0, IDOPT_DETAL},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -171,6 +172,7 @@ void NESCAOPTS::opts_init(void)
   num_scan_param="";
   s_flag=0;
   s_param.clear();
+  detal_flag=0;
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -242,40 +244,56 @@ NESCAPORT NESCATARGET::get_port(size_t id)
   return this->ports.at(id);
 }
 
-void NESCATARGET::add_service(NESCAPORT *port, int key, const std::string &service,
+NESCAPORT *NESCATARGET::get_real_port(size_t id)
+{
+  return &this->ports.at(id);
+}
+
+void NESCATARGET::add_service(NESCAPORT *port, int service,
   struct timeval tstamp1, struct timeval tstamp2)
 {
   NESCASERVICE res;
-  res.key=key;
+
   res.rtt.tstamp1=tstamp1;
   res.rtt.tstamp2=tstamp2;
   res.service=service;
   res.info.clear();
+  res.init=1;
+
   port->services.push_back(res);
 }
 
-void NESCATARGET::add_info_service(NESCAPORT *port, int key, const std::string &info,
-  int infotype)
+void NESCATARGET::add_info_service(NESCAPORT *port, int service,
+    const std::string &info, const std::string type)
 {
-  NESCASERVICE *service;
-  NESCAINFO i;
+  NESCASERVICE *_service=nullptr;
+  NESCAINFO i={};
 
-  for (auto s:port->services)
-    if (s.key==key)
-      service=&s;
+  for (auto &s:port->services)
+    if (s.service==service)
+      _service=&s;
 
   i.info=info;
-  i.type=infotype;
-  service->info.push_back(i);
+  i.type=type;
+  _service->info.push_back(i);
 }
 
-NESCASERVICE NESCATARGET::get_service(NESCAPORT *port, int key)
+NESCASERVICE NESCATARGET::get_service(NESCAPORT *port, int service)
 {
-  for (const auto&s:port->services)
-    if (s.key==key)
+  for (auto &s:port->services)
+    if (s.service==service)
       return s;
   return {};
 }
+
+bool NESCATARGET::check_service(void)
+{
+  for (const auto&p:this->ports)
+    if (!p.services.empty())
+      return 1;
+  return 0;
+}
+
 
 size_t NESCATARGET::get_num_port(void)
 {
@@ -358,6 +376,15 @@ long long NESCATARGET::get_time_ns(size_t id)
   tmp=this->rtts.at(id);
   return ((tmp.tstamp2.tv_sec*1000000000LL+tmp.tstamp2.tv_usec*1000LL)-
     (tmp.tstamp1.tv_sec*1000000000LL+tmp.tstamp1.tv_usec*1000LL));
+}
+
+NESCATIME NESCATARGET::get_time(size_t id)
+{
+  NESCATIME tmp;
+  if (id>get_num_time())
+    return {};
+  tmp=this->rtts.at(id);
+  return tmp;
 }
 
 size_t NESCATARGET::get_type_time(size_t id)
@@ -509,6 +536,7 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_ALL_SCAN:  set_all_scan_flag();                                            break;
     case IDOPT_NUM_SCAN:  set_num_scan_flag();   set_num_scan_param(val);                 break;
     case IDOPT_S:         set_s_flag();          set_s_param(val);                        break;
+    case IDOPT_DETAL:     set_detal_flag();                                               break;
 
   }
 }
@@ -1515,6 +1543,12 @@ void NESCAOPTS::set_s_param(const std::string &s_param)
 std::vector<NESCAPORT> NESCAOPTS::get_s_param(void) { return this->s_param; }
 bool NESCAOPTS::check_s_flag(void) { return this->s_flag; }
 
+/*
+ * -detal
+ */
+void NESCAOPTS::set_detal_flag(void) { this->detal_flag=1; }
+bool NESCAOPTS::check_detal_flag(void) { return this->detal_flag; }
+
 
 /*
  * It searches the longopts array, looks for the <opt> option, if it finds it,
@@ -1848,12 +1882,24 @@ void NESCARAWTARGETS::processing(const std::vector<std::string> &targets)
     }
     else {
       char ip4buf[16];
-      if ((ip4_util_strdst(target.c_str(), ip4buf, 16))!=-1)
+      if ((ip4_util_strdst(target.c_str(), ip4buf, 16))!=-1) {
         this->ipv4.push_back(ip4buf);
+        this->dns[ip4buf]=target;
+      }
       else
         ncsprint->warning("failed resolve \""+target+"\" ("+std::strerror(errno)+")");
     }
   }
+}
+
+std::string NESCARAWTARGETS::getdns(std::string ip)
+{
+  std::string ret;
+  if (ip.empty())
+    return "";
+  ret=this->dns[ip];
+  this->dns.erase(ip);
+  return this->dns[ip];
 }
 
 
@@ -1954,12 +2000,10 @@ void NESCARAWRANGEV4::setlen(void)
   len=count;
 }
 
-
 size_t NESCARAWRANGEV4::getlen(void)
 {
   return this->len;
 }
-
 
 std::vector<std::string> NESCARAWRANGEV4::exportips(size_t start, size_t num)
 {
@@ -1968,12 +2012,17 @@ std::vector<std::string> NESCARAWRANGEV4::exportips(size_t start, size_t num)
   std::string ret;
   int i,j,k,l;
 
-
   /* this shit but work */
   for (i=this->start[0];i<=this->end[0];++i) {
-    for (j=(i==this->start[0]?this->start[1]:0);j<=(i==this->end[0]?this->end[1]:255);++j) {
-      for (k=(i==this->start[0]&&j==this->start[1]?this->start[2]:0);k<=(i==this->end[0]&&j==this->end[1]?this->end[2]:255);++k) {
-        for (l=(i==this->start[0]&&j==this->start[1]&&k==this->start[2]?this->start[3]:0);l<=(i==this->end[0]&&j==this->end[1]&&k==this->end[2]?this->end[3]:255);++l) {
+    for (j=(i==this->start[0]?this->start[1]:0);
+        j<=(i==this->end[0]?this->end[1]:255);++j) {
+      for (k=(i==this->start[0]&&j==this->start[1]?
+            this->start[2]:0);k<=(i==this->end[0]&&
+              j==this->end[1]?this->end[2]:255);++k) {
+        for (l=(i==this->start[0]&&j==this->start[1]&&
+              k==this->start[2]?this->start[3]:0);l<=
+            (i==this->end[0]&&j==this->end[1]&&k==
+             this->end[2]?this->end[3]:255);++l) {
           if (skipped<start-1) {
             ++skipped;
             continue;
@@ -3013,7 +3062,9 @@ void NESCADEVICE::init_device(const std::string &device, NESCAOPTS *ncsopts)
     if (ipv6)
       this->ip6=1;
   }
-  set_send_at();
+
+  /* set_send_at() */
+  this->send_at=77090; /* for example*/
 }
 
 long long NESCADEVICE::get_send_at(void)

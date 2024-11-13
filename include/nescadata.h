@@ -114,6 +114,7 @@
 #define IDOPT_ALL_SCAN  50
 #define IDOPT_NUM_SCAN  51
 #define IDOPT_S         52
+#define IDOPT_DETAL     53
 
 #define SPLITOPT_DEL   ','
 
@@ -126,6 +127,8 @@
 
 #define S_HTTP          0
 #define S_FTP           1
+
+#define S_NUM           2
 
 class NESCADATA;
 typedef __uint128_t u128;
@@ -147,8 +150,7 @@ struct NESCATIME {
  * etc.
  */
 struct NESCAINFO {
-  std::string info;
-  int type;
+  std::string info, type;
 };
 
 
@@ -159,9 +161,9 @@ struct NESCAINFO {
  */
 struct NESCASERVICE {
   std::vector<NESCAINFO> info;
-  std::string service;
+  int service;
   NESCATIME rtt;
-  int key;
+  bool init;
 };
 
 
@@ -194,24 +196,21 @@ class NESCATARGET
   std::string              mac; /* from arp ping */
 
 public:
-  void add_service(NESCAPORT *port, int key, const std::string &service,
+  void add_service(NESCAPORT *port, int service,
     struct timeval tstamp1, struct timeval tstamp2);
-
-  void add_info_service(NESCAPORT *port, int key, const std::string &info,
-    int infotype);
-
-  NESCASERVICE get_service(NESCAPORT *port, int key);
-
+  void add_info_service(NESCAPORT *port, int service,
+      const std::string &info, const std::string type);
+  NESCASERVICE get_service(NESCAPORT *port, int service);
+  bool check_service(void);
   bool is_ip6host(void);
   void add_ip(const std::string &ip);
   void add_dns(const std::string &dns);
   void add_mac(const std::string &mac);
-
   void add_port(int state, int method, int proto,
     int port);
   bool portcompare(NESCAPORT *first, NESCAPORT *second);
-
   NESCAPORT get_port(size_t id);
+  NESCAPORT *get_real_port(size_t id);
   size_t get_num_port(void);
   std::string get_mac(void);
   size_t get_num_ip(void);
@@ -220,11 +219,10 @@ public:
   std::string get_ip(size_t id);
   std::string get_dns(size_t id);
   std::string get_mainip(void);
-
   void add_time(struct timeval tstamp1,
     struct timeval tstamp2, int type);
-
   long long get_time_ns(size_t id);
+  NESCATIME get_time(size_t id);
   size_t get_num_time(void);
   size_t get_type_time(size_t id);
   void set_ok(void);
@@ -354,6 +352,8 @@ class NESCAOPTS
 
   bool s_flag;
   std::vector<NESCAPORT> s_param;
+
+  bool detal_flag;
 
   std::vector<_cfgopt> opts;
   std::string cfgpath;
@@ -530,11 +530,12 @@ public:
   void        set_num_scan_param(const std::string &num_scan_param);
   std::string get_num_scan_param(void);
   bool        check_num_scan_flag(void);
-
   void        set_s_flag(void);
   void        set_s_param(const std::string &s_param);
   std::vector<NESCAPORT> get_s_param(void);
   bool        check_s_flag(void);
+  void        set_detal_flag(void);
+  bool        check_detal_flag(void);
 };
 
 
@@ -637,6 +638,7 @@ class NESCARAWTARGETS
   bool check_from_file=0, check_randomips=0;
   std::vector<NESCARAWRANGEV4> grouptargets;
   size_t lastip4=0, lastip6=0, lastgroup=0;
+  std::map<std::string,std::string> dns;
   std::vector<std::string> ipv4, ipv6;
   std::string from_file="";
   ssize_t randomips=0;
@@ -652,6 +654,7 @@ class NESCARAWTARGETS
       NESCAPRINT *ncsprint, NESCADEVICE *dev);
   void load_from_file(size_t num);
   void load_random_ips(size_t num);
+  std::string getdns(std::string ip);
 };
 
 
@@ -746,6 +749,7 @@ std::string util_timediff(const struct timeval& start,
 std::string util_pps(const struct timeval& start,
     const struct timeval& end, size_t total);
 bool isokport(NESCAPORT *p);
+int enservicekey(int service, int port, int id);
 
 
 #endif

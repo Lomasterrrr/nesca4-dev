@@ -54,6 +54,7 @@ class NCSFTPSERVICE
 class NCSHTTPSERVICE
 {
   protected:
+  bool check(NESCATARGET *target, int port);
 
   public:
   void HTTPSERVICE(std::map<NESCATARGET*,std::vector<int>> targets,

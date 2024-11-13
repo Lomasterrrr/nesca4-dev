@@ -839,8 +839,8 @@ static u8 *get_payload(NESCAOPTS *ncsopts, size_t *reslen)
 void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
 {
+  mac_t dst={0},src={0};
   u8 *res=NULL;
-  mac_t dst={};
   int type=0;
 
   switch (ncsmethod->method) {
@@ -857,7 +857,8 @@ void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
       break;
   }
 
-  res=eth_build(ncsdata->dev.get_srcmac(), dst, type, probe->probe,
+  src=ncsdata->dev.get_srcmac();
+  res=eth_build(src, dst, type, probe->probe,
       probe->probelen, &probe->probelen);
   if (probe->probe)
     free(probe->probe);
@@ -874,7 +875,7 @@ void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
 void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
 {
-  u8 *res=NULL, *ipopts=NULL, off_[2]={0,0};
+  u8 *res=NULL, *ipopts=NULL, off_[2]={0,64};
   size_t ipoptslen=0, offlen=0;
   ip4_t src, dst;
   u16 *off;
@@ -887,7 +888,7 @@ void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
     hex_ahtoh(ncsdata->opts.get_ipopt_param().data(), &ipoptslen):NULL;
 
   ttl=(ncsdata->opts.check_ttl_flag())?std::stoi(ncsdata->opts.get_ttl_param())
-    :random_num_u32(54, 255);
+    :random_num_u32(121, 255);
 
   if (ncsdata->opts.check_off_flag()) {
     hex_atoh(ncsdata->opts.get_off_param().data(), off_, offlen);

@@ -52,7 +52,7 @@ class NESCAPRINT
   void warning(const std::string &warn);
   void finish(NESCADATA *ncsdata);
 
-  void nescatarget(NESCATARGET *target, bool onlyok);
+  void nescatarget(NESCATARGET *target, bool onlyok, bool cut);
   void nescadevice(NESCADEVICE *device);
   void nescastats(size_t grouplen, __uint128_t total, __uint128_t i);
   void PRINTTARGETS(NESCADATA *ncsdata);

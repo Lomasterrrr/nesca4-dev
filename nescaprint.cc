@@ -141,13 +141,24 @@ std::string NESCAPRINT::portblock(NESCAPORT *port, bool onlyok)
   return res;
 }
 
+static std::string cutinfo(const std::string &input, bool yes)
+{
+  std::string res;
+  if (input.length()<40||yes)
+    return input;
+  res=input;
+  res=res.substr(0,40);
+  res+="...";
+  return res;
+}
+
 /*
  * Print results, print class NESCATARGET
  */
-void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok)
+void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok, bool cut)
 {
   std::string methodstr, block;
-  size_t i=0;
+  size_t i, j;
 
   if (onlyok&&!target->isok())
     return;
@@ -162,7 +173,6 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok)
   methodstr.erase(std::unique(methodstr.begin(),
     methodstr.end()), methodstr.end());
   methodstr+="'";
-
   std::cout << "Report nesca4 for ";
   if (!target->get_mainip().empty())
     std::cout << target->get_mainip();
@@ -183,7 +193,9 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok)
   std::cout << methodstr << " ";
   if (target->get_num_time()>0) {
     for (i=0;i<target->get_num_time();i++) {
-      printf("%0.1f ms", (double)(target->get_time_ns(i)/1000000.0));
+      std::cout << util_timediff(target->get_time(i).tstamp1,
+        target->get_time(i).tstamp2);
+      /*printf("%0.1f ms", (double)(target->get_time_ns(i)/1000000.0));*/
       if (i!=target->get_num_time()-1)
         putchar(' ');
     }
@@ -207,12 +219,31 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok)
     }
     putchar('\n');
   }
+  if (target->check_service()) {
+    for (j=0;j<S_NUM;j++) {
+      for (i=0;i<target->get_num_port();i++) {
+        NESCASERVICE tmp=target->get_service(target->get_real_port(i), j);
+        if (!tmp.init)
+          continue;
+        for (const auto&s:tmp.info) {
+          std::cout<<"  "<<
+            ((tmp.service==S_FTP)?"ftp":
+             (tmp.service==S_HTTP)?"http":
+             "???")
+            << "(" << s.type << ")"
+            << "  ";
+            std::cout << cutinfo(s.info, cut);
+            putchar('\n');
+        }
+      }
+    }
+  }
 }
 
 void NESCAPRINT::PRINTTARGETS(NESCADATA *ncsdata)
 {
   for (const auto&t:ncsdata->targets) {
-    this->nescatarget(t, 1);
+    this->nescatarget(t, 1, ncsdata->opts.check_detal_flag());
     if (t->openports())
       putchar('\n');
     ncsdata->tmplast=(t->openports())?0:1;
@@ -309,10 +340,8 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -random-ip <num>: choose random ip4 target(s)\n";
   std::cout << "INTERFACE\n";
   std::cout << "  -dev <name>: set your interface\n";
-  std::cout << "  -dst <mac>: set your dest mac\n";
-  std::cout << "  -src <mac>: set your source mac\n";
-  std::cout << "  -ip4 <ip4>: set your source ip4\n";
-  std::cout << "  -ip6 <ip6>: set your source ip6\n";
+  std::cout << "  -dst, -src <mac>: set your source or dest mac\n";
+  std::cout << "  -ip4, -ip6 <ip>: set your source ip4 or ip6\n";
   std::cout << "ENGINE\n";
   std::cout << "  -maxfds <num>: set your max open fds\n";
   std::cout << "  -pps <pps>: set max packet per second for send\n";
@@ -338,7 +367,7 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -xmas, -fin, -psh, -null: use one of these scanning methods.\n";
   std::cout << "  -syn, -ack, -window, -maimon: use other TCP methods port scan.\n";
   std::cout << "  -init, -cookie, -udp: use init, cookie SCTP, or UDP port scan method.\n";
-  std::cout << "  -all-scan: use all scan port methods.\n";
+  std::cout << "  -all-scan: using all scan port methods.\n";
   std::cout << "  -wait-scan <time>: set your max wait time for scan (timeout)\n";
   std::cout << "  -num-scan <num>: set count scan probes\n";
   std::cout << "  -mtpl-scan <multiplier>: set your multiplier for calc scan timeout\n    Nb: <rtt> * <mult> = timeout\n";
@@ -346,6 +375,7 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -sn, -n-scan: skip port scan, disable port scan.\n";
   std::cout << "SERVICES\n";
   std::cout << "  -s <ports>: set ports for service,\n    Ex: -s http:40-50,ftp:3,rvi:33,10-15\n";
+  std::cout << "  -detal: do not abbreviate service information\n";
   std::cout << "OTHER\n";
   std::cout << "  -n: no resolv, skip resolution dns names\n";
   std::cout << "  -cfg <path>: set your config file for opts\n";
