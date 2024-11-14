@@ -314,7 +314,7 @@ void NESCAPRINT::nescadevice(NESCADEVICE *device)
   ip4_g=device->get_gateway4();
   ip6_g=device->get_gateway6();
 
-  std::cout << "DEVICE " << device->get_device() <<
+  std::cout << "note: device " << device->get_device() <<
     ((device->check_ipv6())?" [support ip6]":" [not support ip6]") <<
     ((device->check_ipv4())?" [support ip4]":" [not support ip4]") <<
     ": mac(" << mact_ntop_c(&mac) <<
@@ -378,6 +378,7 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -detal: do not abbreviate service information\n";
   std::cout << "OTHER\n";
   std::cout << "  -n: no resolv, skip resolution dns names\n";
+  std::cout << "  -v: display all verbose information\n";
   std::cout << "  -cfg <path>: set your config file for opts\n";
   std::cout << "  -badsum: send packets with bodus checksum\n";
   std::cout << "  -help: display this menu and exit\n";
@@ -409,4 +410,9 @@ void NESCAPRINT::error(const std::string &err)
 void NESCAPRINT::warning(const std::string &warn)
 {
   std::cout << "warn: " << warn << std::endl;
+}
+
+void NESCAPRINT::note(const std::string &note)
+{
+  std::cout << "note: " << note << std::endl;
 }

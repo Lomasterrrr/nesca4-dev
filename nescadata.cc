@@ -109,6 +109,7 @@ struct option longopts[]={
   {"num-scan", 1, 0, IDOPT_NUM_SCAN},
   {"random-ip", 1, 0, IDOPT_RADNOM_IP},
   {"detal", 0, 0, IDOPT_DETAL},
+  {"v", 0, 0, IDOPT_V},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -173,6 +174,7 @@ void NESCAOPTS::opts_init(void)
   s_flag=0;
   s_param.clear();
   detal_flag=0;
+  v_flag=0;
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -537,6 +539,7 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_NUM_SCAN:  set_num_scan_flag();   set_num_scan_param(val);                 break;
     case IDOPT_S:         set_s_flag();          set_s_param(val);                        break;
     case IDOPT_DETAL:     set_detal_flag();                                               break;
+    case IDOPT_V:         set_v_flag();                                                   break;
 
   }
 }
@@ -1543,11 +1546,19 @@ void NESCAOPTS::set_s_param(const std::string &s_param)
 std::vector<NESCAPORT> NESCAOPTS::get_s_param(void) { return this->s_param; }
 bool NESCAOPTS::check_s_flag(void) { return this->s_flag; }
 
+
 /*
  * -detal
  */
 void NESCAOPTS::set_detal_flag(void) { this->detal_flag=1; }
 bool NESCAOPTS::check_detal_flag(void) { return this->detal_flag; }
+
+
+/*
+ * -v
+ */
+void NESCAOPTS::set_v_flag(void) { this->v_flag=1; this->stats_flag=1; }
+bool NESCAOPTS::check_v_flag(void) { return this->v_flag; }
 
 
 /*
@@ -1668,6 +1679,7 @@ void NESCARAWTARGETS::load(int argc, char **argv, NESCAOPTS *ncsopts, NESCAPRINT
   std::vector<std::string>  targets;
   std::string               txt, line;
   int                       i=1;
+  bool                      opt=0;
 
   this->ncsdev=ncsdev;
   for (;i<argc;++i) {
@@ -1681,6 +1693,8 @@ void NESCARAWTARGETS::load(int argc, char **argv, NESCAOPTS *ncsopts, NESCAPRINT
     }
     targets.push_back(txt);
   }
+  if (!targets.empty())
+    opt=1;
 
   check_from_file=ncsopts->check_import_flag();
   check_randomips=ncsopts->check_random_ip_flag();
@@ -1693,6 +1707,16 @@ void NESCARAWTARGETS::load(int argc, char **argv, NESCAOPTS *ncsopts, NESCAPRINT
       ++filelines;
     f.close();
   }
+
+  if (ncsopts->check_v_flag())
+    ncsprint->note(
+        "set source targets from <file="+
+        std::string(((check_from_file)?("1("+
+          std::string(from_file))+")":"0"))+", rand="+
+        std::string(((check_randomips)?("1("+
+          std::to_string(randomips)+")"):"0"))+", arg="+
+        ((opt)?("1"):"0")+">"
+    );
 
   if (targets.empty()&&filelines<=0&&randomips<=0)
     ncsprint->error("not a single target was specified!");
@@ -1851,15 +1875,13 @@ void NESCARAWTARGETS::processing(const std::vector<std::string> &targets)
   for (const auto&t:targets) {
     target=trim(t);
     if (is_valid_ipv6(target)||is_valid_cidr6(target)
-      ||is_valid_range6(target)) {
+      ||is_valid_range6(target))
       if (!ncsdev->check_ipv6())
         this->ncsprint->error("your device not support ipv6");
-    }
     if (is_valid_ipv4(target)||is_valid_cidr4(target)
-      ||is_valid_range4(target)) {
+      ||is_valid_range4(target))
       if (!ncsdev->check_ipv4())
         this->ncsprint->error("your device not support ipv4");
-    }
     if (is_valid_ipv4(target))
       this->ipv4.push_back(target);
     else if (is_valid_ipv6(target))
@@ -2419,6 +2441,8 @@ void NESCADEVICE::init(NESCAPRINT *ncsprint, NESCAOPTS *ncsopts)
     if (is_okdevice(ncsopts->get_dev_param(), 1))
       this->device=ncsopts->get_dev_param();
   init_device(this->device, ncsopts);
+  if (ncsopts->check_v_flag())
+    ncsprint->nescadevice(this);
 }
 
 typedef struct ___arp_arg {

@@ -22,39 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "include/nescaengine.h"
-#include "include/nescadata.h"
-#include "include/nescaprint.h"
-#include "libncsnet/ncsnet/arp.h"
-#include "libncsnet/ncsnet/eth.h"
-#include "libncsnet/ncsnet/hex.h"
-#include "libncsnet/ncsnet/icmp.h"
-#include "libncsnet/ncsnet/ip.h"
-#include "libncsnet/ncsnet/ip4addr.h"
-#include "libncsnet/ncsnet/ip6addr.h"
-#include "libncsnet/ncsnet/linuxread.h"
-#include "libncsnet/ncsnet/mac.h"
-#include "libncsnet/ncsnet/ncsnet.h"
-#include "libncsnet/ncsnet/random.h"
-#include "libncsnet/ncsnet/sctp.h"
-#include "libncsnet/ncsnet/tcp.h"
-#include "libncsnet/ncsnet/trace.h"
-#include "libncsnet/ncsnet/udp.h"
-#include "libncsnet/ncsnet/utils.h"
-#include <algorithm>
-#include <arpa/inet.h>
-#include <cstddef>
-#include <cstdlib>
-#include <exception>
-#include <limits>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <vector>
-#include <sys/resource.h>
 
+#include "include/nescaengine.h"
+
+/* мутэкс для остановки приема */
+static std::mutex stoprecv;
+
+
+/*
+ * Получает максимально возможное число
+ * открытых сокетов, возвращает его.
+ */
 static int maxfds(void)
 {
   struct rlimit limit;
@@ -62,8 +40,11 @@ static int maxfds(void)
   return limit.rlim_cur;
 }
 
-static std::mutex stoprecv;
 
+/*
+ * Получает DNS у ip4 или ip6 и добавляет
+ * его к цели.
+ */
 bool NESCARESOLV_try(NESCATARGET *target, NESCADATA *ncsdata)
 {
   char host[NI_MAXHOST], service[NI_MAXSERV];
@@ -89,7 +70,8 @@ bool NESCARESOLV_try(NESCATARGET *target, NESCADATA *ncsdata)
     len=sizeof(struct sockaddr_in);
   }
 
-  ret=getnameinfo((struct sockaddr*)&addr, len, host, sizeof(host), service, sizeof(service), 0);
+  ret=getnameinfo((struct sockaddr*)&addr, len,
+    host, sizeof(host), service, sizeof(service), 0);
   if (ret!=0)
     return 0;
 
@@ -100,6 +82,12 @@ bool NESCARESOLV_try(NESCATARGET *target, NESCADATA *ncsdata)
   return 1;
 }
 
+
+/*
+ * Запускает в пуле потоков функцю NESCARESOLV_try,
+ * выводит информацию о своем запуске, если стоит
+ * -stats.
+ */
 bool _NESCARESOLV_(std::vector<NESCATARGET*> targets, NESCADATA *ncsdata)
 {
   std::vector<std::future<bool>> futures;
@@ -132,6 +120,11 @@ bool _NESCARESOLV_(std::vector<NESCATARGET*> targets, NESCADATA *ncsdata)
 
 }
 
+
+/*
+ * Пул потоков взятый из chatgpt, и который
+ * она всем дает.
+ */
 NESCAPOOL::NESCAPOOL(size_t numthreads) : stop(false)
 {
   size_t i;
@@ -151,7 +144,7 @@ NESCAPOOL::NESCAPOOL(size_t numthreads) : stop(false)
     );
   }
 }
-
+/* Завершает этот пул потоков */
 NESCAPOOL::~NESCAPOOL()
 {
   {
@@ -164,7 +157,10 @@ NESCAPOOL::~NESCAPOOL()
 
 
 /*
- * ICMP4 error filter
+ * Фильтр для ICMP4 ошибок, в случае dstunreach
+ * возвращает код ошибки, поскольку для некоторых
+ * типов сканирования и пинга это может повлиять
+ * на статус
  */
 static int __received_icmp4_error(u8 *frame, size_t frmlen, void *arg, int *skip, int *proto)
 {
@@ -172,28 +168,40 @@ static int __received_icmp4_error(u8 *frame, size_t frmlen, void *arg, int *skip
   icmph_t *icmp=NULL;
   ip4h_t *ip=NULL;
 
-  *skip=(14+sizeof(ip4h_t)+(sizeof(icmph_t)+4)+sizeof(ip4h_t));
-  icmp=(icmph_t*)(frame+(14+sizeof(ip4h_t)));
 
   /*
-   * ICMP4 redirect, source quench, param prob,
-   * timexeed, dstunreach
+   * Получает сдвиг до дополнительного протокола
+   * в ICMP ошибке. Т.е,
+   *   [mac]+[ip]+[icmp & msg]+[ip] = [то что нужно]
    */
+  *skip=(14+sizeof(ip4h_t)+(sizeof(icmph_t)+4)+sizeof(ip4h_t));
+
+
+  /* ICMP заголовок ошибки */
+  icmp=(icmph_t*)(frame+(14+sizeof(ip4h_t)));
 
   if (icmp->type==ICMP4_REDIRECT||icmp->type==ICMP4_SRCQUENCH||
       icmp->type==ICMP4_PARAMPROB||icmp->type==ICMP4_TIMEXCEED||
       icmp->type==ICMP4_UNREACH) {
 
-    /* src ip in ip header or icmp error */
+
+    /* IP заголовок внутри ICMP ошибки */
     ip=(ip4h_t*)(frame+((14+sizeof(ip4h_t)+sizeof(icmph_t)+4)));
     *proto=ip->proto;
+
+
+    /*
+     * Сначала сравнивает сходится ли ip получателя
+     * с нашим ip в IP заголовке в ICMP ошибке. Если
+     * не сходится, то тогда делаем тоже самое только
+     * уже в основном IP заголовке.
+     */
     if (!ip4t_compare(a->addr.ip4, ip->dst)) {
       ip=(ip4h_t*)(frame+14);
       if (!ip4t_compare(a->addr.ip4, ip->src))
         return 0;
     }
 
-    /* dstunreach proto or port */
     if (icmp->type==ICMP4_UNREACH&&
       (icmp->code==ICMP4_UNREACH_PORT
         ||icmp->code==ICMP4_UNREACH_PROTO))
@@ -205,7 +213,10 @@ static int __received_icmp4_error(u8 *frame, size_t frmlen, void *arg, int *skip
 
 
 /*
- * ICMP6 error filter
+ * Фильтр для ICMP6 ошибок, в случае dstunreach
+ * возвращает код ошибки, поскольку для некоторых
+ * типов сканирования и пинга это может повлиять
+ * на статус
  */
 static int __received_icmp6_error(u8 *frame, size_t frmlen, void *arg, int *skip, int *proto)
 {
@@ -213,29 +224,41 @@ static int __received_icmp6_error(u8 *frame, size_t frmlen, void *arg, int *skip
   icmph_t *icmp=NULL;
   ip6h_t *ip=NULL;
 
-  *skip=(14+sizeof(ip6h_t)+(sizeof(icmph_t)+4)+sizeof(ip6h_t));
-  icmp=(icmph_t*)(frame+(14+sizeof(ip6h_t)));
-
   /*
-   * ICMP6 dstunreach, pktobig, param prob,
-   * timexeed
+   * Получает сдвиг до дополнительного протокола
+   * в ICMP ошибке. Т.е,
+   *   [mac]+[ip6]+[icmp & msg]+[ip6] = [то что нужно]
    */
+  *skip=(14+sizeof(ip6h_t)+(sizeof(icmph_t)+4)+sizeof(ip6h_t));
+
+
+  /* ICMP заголовок ошибки */
+  icmp=(icmph_t*)(frame+(14+sizeof(ip6h_t)));
 
   if (icmp->type==ICMP6_UNREACH||
     icmp->type==ICMP6_PARAMPROBLEM
     ||icmp->type==2/* pkt too big*/||
     icmp->type==ICMP6_TIMEXCEED) {
 
-    /* src ip in ip header or icmp error */
+
+    /* IP заголовок внутри ICMP ошибки */
     ip=(ip6h_t*)(frame+((14+sizeof(ip6h_t)+sizeof(icmph_t)+4)));
     *proto=ip->nxt;
+
+
+    /*
+     * Сначала сравнивает сходится ли ip получателя
+     * с нашим ip в IP заголовке в ICMP ошибке. Если
+     * не сходится, то тогда делаем тоже самое только
+     * уже в основном IP заголовке.
+     */
     if (!ip6t_compare(a->addr.ip6, ip->dst)) {
       ip=(ip6h_t*)(frame+14);
       if (!ip6t_compare(a->addr.ip6, ip->src))
         return 0;
     }
 
-    /* dstunreach port */
+
     if (icmp->type==ICMP6_UNREACH&&
       icmp->code==ICMP6_UNREACH_PORT)
       return icmp->code;
@@ -246,7 +269,7 @@ static int __received_icmp6_error(u8 *frame, size_t frmlen, void *arg, int *skip
 
 
 /*
- * ICMP error filter
+ * Фильтр для ICMP4 и ICMP6 ошибок.
  */
 static int __received_icmp_error(u8 *frame, size_t frmlen, void *arg, int icmpv)
 {
@@ -254,6 +277,8 @@ static int __received_icmp_error(u8 *frame, size_t frmlen, void *arg, int icmpv)
   int             ret=0, skip=0, proto=0;
   struct __arg_  *a=(struct __arg_*)arg;
 
+
+  /* Проверяем полезна ли нам эта ошибка */
   if (icmpv==PR_ICMP)
     ret=__received_icmp4_error(frame, frmlen, arg, &skip, &proto);
   if (a->addrtype==PR_ICMPV6)
@@ -261,8 +286,20 @@ static int __received_icmp_error(u8 *frame, size_t frmlen, void *arg, int icmpv)
   if (!ret)
     return ret;
 
+
+  /*
+   * Протокол внутри IP заголовка внтури ICMP ошибки
+   * не сходится с нашим протоколом.
+   */
   if (proto!=a->proto)
     return 0;
+
+
+  /*
+   * Проверка наш ли это пакет, для ICMP это id, для
+   * TCP,UDP,SCTP это порт получателя и отправителя,
+   * а также, для TCP - seq, для SCTP - vtag
+   */
   if (a->proto==PR_TCP||a->proto==PR_UDP||a->proto==PR_SCTP||
     a->proto==PR_ICMP) {
     struct filter_ *f=(struct filter_*)(frame+skip);
@@ -284,9 +321,10 @@ static int __received_icmp_error(u8 *frame, size_t frmlen, void *arg, int icmpv)
 
 
 /*
- * Callback to receive arp, checks payload type, operation,
- * header, protocol, address length, and whether the sender's
- * ip matches the receiver's ip.
+ * Фильтр для приема ARP пакетов, проверяет
+ * много всего, например, операцию, заголовок,
+ * протокол, мак ли адреса и ip4 адреса ли, и
+ * т.д.
  */
 static bool __received_arp_ping_callback(u8 *frame, size_t frmlen, void *arg)
 {
@@ -307,17 +345,17 @@ static bool __received_arp_ping_callback(u8 *frame, size_t frmlen, void *arg)
   else if (ntohs(arp->pro)!=ARP_PRO_IP)
     return 0;
 
-  if (arp->pln!=4) /* only ipv4 */
+  if (arp->pln!=4) /* только ipv4 */
     return 0;
-  if (arp->hln!=6) /* only mac as long as 6*/
+  if (arp->hln!=6) /* только mac адреса
+                      длинной в 6 байт */
     return 0;
 
 
   /*
-   * The ip4 address of the recipient inside
-   * the ARP request must match the local ip4
-   * address, otherwise, the packet was not
-   * addressed to us.
+   * Ip4-адрес получателя внутри ARP-запроса
+   * должен совпадать с локальным ip4 адресам,
+   * иначе пакет не был адресован нам.
    */
   arpreq=(arp_op_request_ethip*)((frame)+(sizeof(mach_t)+sizeof(arph_t)));
   if (!ip4t_compare(arpreq->spa, a->addr.ip4))
@@ -328,7 +366,8 @@ static bool __received_arp_ping_callback(u8 *frame, size_t frmlen, void *arg)
 
 
 /*
- * Callback for filter and recv ping
+ * Фильтр для пинг сканирования, обрабатывает
+ * ARP, IP, ICMP4, ICMP6, TCP, UDP, SCTP.
  */
 static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
 {
@@ -345,22 +384,28 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
   skip=0;
 
 
-  /*
-   * ARP
-   */
+  /* Это ARP пинг а значит вызываем его
+   * callback */
   if (a->method==M_ARP_PING) {
     if (ntohs(datalink->type)!=ETH_TYPE_ARP)
       return 0;
-    return __received_arp_ping_callback(frame, frmlen, arg);
+    return __received_arp_ping_callback(frame,
+      frmlen, arg);
   }
 
 
-  /*
-   * IP
-   */
+  /* Это не IP пакет, и не наш ARP */
   if ((a->addrtype==4&&ntohs(datalink->type)!=ETH_TYPE_IPV4)||
     (a->addrtype==6&&ntohs(datalink->type)!=ETH_TYPE_IPV6))
     return 0;
+
+
+  /*
+   * Проверяем наличие IP4 или IP6 заголовка,
+   * и сохраняем, во первых сдвиг до следующего
+   * протокола, затем IP адрес отправителя для
+   * дальнейшего сравнения, и следующий проткол.
+   */
   if (a->addrtype==4) {
     if ((frmlen-14)<sizeof(ip4h_t))
       return 0;
@@ -380,10 +425,20 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
 
 
   /*
-   * ICMP error
+   * Если протокол это ICMP то проверяем
+   * его на ошибки которые могут быть нам
+   * полезны.
    */
   if (proto==PR_ICMP||proto==PR_ICMPV6) {
     icmph_t *icmp=(icmph_t*)((frame+(14+skip)));
+
+
+    /*
+     * Проверяем ошибка ли это вообще, конечно внутри
+     * этих функций тоже есть проверка, но если они вернут
+     * 0, то эта тоже завершится, хотя это мог быть пинг
+     * например.
+     */
     if (proto==PR_ICMP&&icmp->type!=ICMP4_ECHOREPLY&&
         icmp->type!=ICMP4_TSTAMPREPLY
         &&icmp->type!=ICMP4_INFOREPLY)
@@ -393,35 +448,36 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
   }
 
 
-  /* Filter */
+  /*
+   * Проверяем сходится ли протокол с нашим,
+   * и сходятся ли IP.
+   */
   if (proto!=a->proto)
     return 0;
-  if (a->addrtype==6)
-    if (!ip6t_compare(a->addr.ip6, cmp6))
-      return 0;
-  if (a->addrtype==4)
-    if (!ip4t_compare(a->addr.ip4, cmp4))
-      return 0;
+  if (a->addrtype==6&&!ip6t_compare(a->addr.ip6, cmp6))
+    return 0;
+  if (a->addrtype==4&&!ip4t_compare(a->addr.ip4, cmp4))
+    return 0;
 
 
   /*
-   * ICMP echo ping
-   * ICMP info ping
-   * ICMP tstamp ping
+   * Фильтрация ICMP4 пинга, echo, tstamp, info. Если
+   * это ECHO пинг то в ответ мы ждем ICMP пакет с
+   * ICMPECHOREPLY типом, если TSTAMP то в ответ
+   * TSTAMPREPLY, если INFO, то в ответ INFOREPLY
    */
   if (proto==PR_ICMP) {
     icmph_t *icmp=(icmph_t*)((frame+(14+skip)));
-    if (icmp->type!=ICMP4_ECHOREPLY&&a->method==M_ICMP_PING_ECHO)
-      return 0;
-    if (icmp->type!=ICMP4_TSTAMPREPLY&&a->method==M_ICMP_PING_TIME)
-      return 0;
-    if (icmp->type!=ICMP4_INFOREPLY&&a->method==M_ICMP_PING_INFO)
-      return 0;
+    if ((icmp->type!=ICMP4_ECHOREPLY&&a->method==M_ICMP_PING_ECHO)||
+      (icmp->type!=ICMP4_TSTAMPREPLY&&a->method==M_ICMP_PING_TIME)||
+      (icmp->type!=ICMP4_INFOREPLY &&a->method==M_ICMP_PING_INFO))
+    return 0;
   }
 
 
   /*
-   * ICMP6 echo ping
+   * Фильтрация ICMP6 ECHO пинга, в ответ мы
+   * ждем ICMP6 пакет с типом ECHOREPLY
    */
   if (proto==PR_ICMPV6) {
     icmph_t *icmp=(icmph_t*)((frame+(14+skip)));
@@ -431,24 +487,27 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
 
 
   /*
-   * TCP ACK ping
-   * TCP SYN ping
+   * Фильтрация TCP пинга, ACK, SYN. В ответ на
+   * ACK запрос мы ждем TCP пакет с флагом RST,
+   * в ответ на SYN, мы ждем пакет с флагами
+   * SYN+ACK, или RST ???, порты тоже должны
+   * сходится.
    */
   if (proto==PR_TCP) {
     tcph_t *tcp=(tcph_t*)(frame+(14+skip));
-    if (ntohs(tcp->th_sport)!=a->port||
-      ntohs(tcp->th_dport)!=a->srcport)
-      return 0;
-    if (a->method==M_TCP_PING_ACK&&!(tcp->th_flags&TCP_FLAG_RST))
-      return 0;
-    if (a->method==M_TCP_PING_SYN&&!(tcp->th_flags&TCP_FLAG_RST)
-        &&(tcp->th_flags&!(TCP_FLAG_SYN|TCP_FLAG_ACK)))
+    if ((ntohs(tcp->th_sport)!=a->port||ntohs(tcp->th_dport)!=a->srcport)||
+      (a->method==M_TCP_PING_ACK&&!(tcp->th_flags&TCP_FLAG_RST))||
+      (a->method==M_TCP_PING_SYN&&!(tcp->th_flags&TCP_FLAG_RST)&&
+       (tcp->th_flags&!(TCP_FLAG_SYN|TCP_FLAG_ACK))))
       return 0;
   }
 
 
   /*
-   * UDP ping
+   * Фильтрация UDP пинга, тут особо нечего делать,
+   * ведь просто само обстоятельство когда на UDP
+   * пакет пришел UDP пакет уже удивительно,
+   * проверяем сходство портов
    */
   if (proto==PR_UDP) {
     udph_t *udp=(udph_t*)(((frame+14)+skip));
@@ -459,7 +518,8 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
 
 
   /*
-   * SCTP init ping
+   * Фильтрация SCTP пинга, тут проверяем тоже
+   * только порты.
    */
   if (proto==PR_SCTP) {
     sctph_t *sctp=(sctph_t*)(((frame+14)+skip));
@@ -471,6 +531,11 @@ static bool __ping_callback(u8 *frame, size_t frmlen, void *arg)
   return 1;
 }
 
+
+/*
+ * Фильтр для сканирования портов, подходит для,
+ * TCP, SCTP, UDP сканирований, всех их подтипов.
+ */
 static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
 {
   struct __arg_   *a=(struct __arg_*)arg;
@@ -485,10 +550,18 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
   datalink=(mach_t*)frame;
   skip=0;
 
+  /* Убеждаемся что это IP пакет */
   if ((a->addrtype==4&&ntohs(datalink->type)!=ETH_TYPE_IPV4)||
     (a->addrtype==6&&ntohs(datalink->type)!=ETH_TYPE_IPV6))
     return 0;
 
+
+  /*
+   * Проверяем наличие IP4 или IP6 заголовка,
+   * и сохраняем, во первых сдвиг до следующего
+   * протокола, затем IP адрес отправителя для
+   * дальнейшего сравнения, и следующий проткол.
+   */
   if (a->addrtype==4) {
     if ((frmlen-14)<sizeof(ip4h_t))
       return 0;
@@ -506,8 +579,12 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
     proto=iph->nxt;
   }
 
+
   /*
-   * ICMP error
+   * Если пришел ICMP и это ошибка, то если метод
+   * сканирования это UDP, значит порт имеет
+   * статус закрытого (closed), в ином случае,
+   * порт имеет статус фильтрации (filtered)
    */
   if (proto==PR_ICMP||proto==PR_ICMPV6) {
     icmph_t *icmp=(icmph_t*)((frame+(14+skip)));
@@ -518,7 +595,6 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
     if (proto==PR_ICMPV6&&icmp->type!=ICMP6_ECHOREPLY)
       ret=__received_icmp_error(frame, frmlen, arg, proto);
     if (ret) {
-      /* icmp error is filtered port or closed udp */
       a->state=(ret==ICMP4_UNREACH_PORT&&a->method==M_UDP_SCAN)
         ?PORT_CLOSED:PORT_FILTER;
       return 1;
@@ -526,7 +602,11 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
     return 0;
   }
 
-  /* Filter */
+
+  /*
+   * Проверяем сходится ли протокол с нашим,
+   * и сходятся ли IP.
+   */
   if (proto!=a->proto)
     return 0;
   if (a->addrtype==6)
@@ -538,7 +618,7 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
 
 
   /*
-   * TCP scan ports
+   * TCP сканирование портов
    * ack, syn, null, fin, xmas, maimon, window, psh
    *
    * https://github.com/nmap/nmap/blob/master/scan_engine_raw.cc
@@ -572,8 +652,7 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
 
 
   /*
-   * UDP scan ports
-   *
+   * UDP сканирование портов
    * https://nmap.org/book/scan-methods-udp-scan.html
    */
   if (proto==PR_UDP) {
@@ -586,7 +665,7 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
 
 
   /*
-   * SCTP scan ports
+   * SCTP сканирование портов
    * init, cookie
    *
    * https://nmap.org/book/man-port-scanning-techniques.html
@@ -612,6 +691,12 @@ static bool __scan_callback(u8 *frame, size_t frmlen, void *arg)
   return 1;
 }
 
+
+/*
+ * Иницилизируем иницилизацию, получаем сокет
+ * для отправки и методы, обнуляем переменные,
+ * получаем общее число пакетов.
+ */
 NESCAINIT::NESCAINIT(NESCADATA *ncsdata, bool ping)
 {
   ni_initsendfd(&ncsdata->dev);
@@ -620,6 +705,13 @@ NESCAINIT::NESCAINIT(NESCADATA *ncsdata, bool ping)
   num=NI_NUM(ncsdata->targets);
 }
 
+
+/*
+ * Возвращает общее количество пакетов, для
+ * этого считаем все методы, и количество проб
+ * для этих методов не считая уже сами методы,
+ * и умножаем это на общее количество целей.
+ */
 size_t NESCAINIT::NI_NUM(std::vector<NESCATARGET*> targets)
 {
   size_t res=0;
@@ -630,6 +722,12 @@ size_t NESCAINIT::NI_NUM(std::vector<NESCATARGET*> targets)
   return res;
 }
 
+
+/*
+ * Сносим нахуй иницилизацию, закрываем сокет
+ * для отправки, и очищая удаляем все что она
+ * создала.
+ */
 NESCAINIT::~NESCAINIT(void)
 {
   if (this->sendfd)
@@ -637,6 +735,12 @@ NESCAINIT::~NESCAINIT(void)
   NI_CLEAR();
 }
 
+
+/*
+ * Очищает и почти удаляет все что было
+ * сделано классом NESCAINIT, пробы,
+ * результаты, сокеты для приема.
+ */
 void NESCAINIT::NI_CLEAR(void)
 {
   std::vector<std::thread> threads;
@@ -661,7 +765,8 @@ void NESCAINIT::NI_CLEAR(void)
 
 
 /*
- * Init socket for send
+ * Иницилизируем сокет для отправки, на наш
+ * интерфейс.
  */
 void NESCAINIT::ni_initsendfd(NESCADEVICE *ncsdev)
 {
@@ -670,7 +775,10 @@ void NESCAINIT::ni_initsendfd(NESCADEVICE *ncsdev)
 
 
 /*
- * Init socket for recv
+ * Иницилизируем сокет для приема, для этого
+ * получаем или считаем таймаут, устанавливаем
+ * фильтр, либо сканирование либо пинг, и добавляем
+ * сокет в вектор сокетов для приема.
  */
 void NESCAINIT::ni_initrecvfd(NESCATARGET *target, NESCADEVICE *ncsdev,
       NESCAOPTS *ncsopts, bool ping)
@@ -688,7 +796,8 @@ void NESCAINIT::ni_initrecvfd(NESCATARGET *target, NESCADEVICE *ncsdev,
   if (ncsopts->check_wait_ping_flag()&&ping)
     timeout=delayconv(ncsopts->get_wait_ping_param().c_str());
 
-  /* Predicting the time of sending */
+  /* Прорицаем примерную задержку отправки,
+   * оно не работает даже когда работает */
   timeout+=ncsdev->get_send_at();
 
   lr=lr_open(ncsdev->get_device().c_str(), timeout);
@@ -702,7 +811,9 @@ void NESCAINIT::ni_initrecvfd(NESCATARGET *target, NESCADEVICE *ncsdev,
 
 
 /*
- * Init method
+ * Иницилизируем метод и число проб на этот
+ * метод, что бы получить количество проб
+ * если указаны еще и порты, нужно их перемножить.
  */
 void NESCAINIT::ni_initmethod(size_t numprobes, int method,
     std::vector<int> ports)
@@ -710,9 +821,9 @@ void NESCAINIT::ni_initmethod(size_t numprobes, int method,
   int proto;
   proto=((method>=1&&method<=3)?PR_ICMP
       :(method>=4&&method<=13)?PR_TCP
-      : (method>=14&&method<=16)?PR_SCTP
-      : (method>=17&&method<=18)?PR_UDP
-      : ETH_TYPE_ARP);
+      :(method>=14&&method<=16)?PR_SCTP
+      :(method>=17&&method<=18)?PR_UDP
+      :ETH_TYPE_ARP);
   NESCAMETHOD m={(((numprobes>0)?numprobes:1))*
     ((ports.empty())?1:ports.size()), 0, method,
       proto, ports};
@@ -721,12 +832,14 @@ void NESCAINIT::ni_initmethod(size_t numprobes, int method,
 
 
 /*
- * Init methods for probes
+ * Иницилизирует методы сканирования и пинга,
+ * вначале собирает порты, затем количество проб,
+ * и иницилизирует вызывая функцию выше.
  */
 void NESCAINIT::ni_initmethods(NESCAOPTS *ncsopts, bool ping)
 {
   std::vector<int> tcports, udports, sctports;
-  size_t numtmp, numscan;
+  size_t numtmp=0, numscan=0;
 
   if (ping)
     goto ping;
@@ -764,7 +877,6 @@ void NESCAINIT::ni_initmethods(NESCAOPTS *ncsopts, bool ping)
   if (ncsopts->check_udp_flag())
     ni_initmethod(numscan, M_UDP_SCAN, udports);
   /* ..., */
-
   return;
 
 ping:
@@ -788,6 +900,12 @@ ping:
   /* ..., */
 }
 
+
+/*
+ * Получает payload сразу с трех источников, и
+ * объеденяет в один, и возвращает его в
+ * unsigned char *.
+ */
 static u8 *get_payload(NESCAOPTS *ncsopts, size_t *reslen)
 {
   size_t hexlen=0, strlen_=0, randlen=0, skip=0;
@@ -811,30 +929,24 @@ static u8 *get_payload(NESCAOPTS *ncsopts, size_t *reslen)
     *reslen+=strlen_;
   }
 
+  /* Создаем один буфер */
   res=(u8*)calloc(1,*reslen);
   if (!res)
     return NULL;
 
-  /* init */
-  if (hex) {
-    memcpy(res+skip, hex, hexlen);
-    skip+=hexlen;
-  }
-  if (str) {
-    memcpy(res+skip, str, strlen_);
-    skip+=strlen_;
-  }
-  if (rand) {
-    memcpy(res+skip, rand, randlen);
-    skip+=strlen_;
-  }
+  /* Собираем их в один буфер */
+  if (hex) { memcpy(res+skip, hex, hexlen); skip+=hexlen; }
+  if (str) { memcpy(res+skip, str, strlen_); skip+=strlen_; }
+  if (rand) { memcpy(res+skip, rand, randlen); skip+=strlen_; }
 
   return res;
 }
 
 
 /*
- * eth build
+ * Создает заголовок 802.3, и клеет к нему
+ * все что было получено до и иницилизует
+ * некоторые вещи в probe.
  */
 void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
@@ -844,15 +956,19 @@ void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
   int type=0;
 
   switch (ncsmethod->method) {
+
+    /* Для ARP нам не нужен получатель,
+     * мы ебашим это в broadcast. */
     case M_ARP_PING:
       type=ETH_TYPE_ARP;
       mact_fill(&dst, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff);
       break;
+
+    /* Если не ARP то получатель неизбежен,
+     * получаем его. */
     default:
-      if (target->is_ip6host())
-        type=ETH_TYPE_IPV6;
-      else
-        type=ETH_TYPE_IPV4;
+      type=(((target->is_ip6host())?ETH_TYPE_IPV6
+        :ETH_TYPE_IPV4));
       dst=ncsdata->dev.get_dstmac();
       break;
   }
@@ -860,7 +976,11 @@ void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
   src=ncsdata->dev.get_srcmac();
   res=eth_build(src, dst, type, probe->probe,
       probe->probelen, &probe->probelen);
+
   if (probe->probe)
+
+    /* Воздаем очистку, поскольку,
+     * у нас новый пакет. */
     free(probe->probe);
 
   probe->probe=res;
@@ -870,12 +990,13 @@ void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
 
 
 /*
- * ip4 build
+ * Создает IP заголовок 4 версии, и дополняет
+ * probe значениями.
  */
 void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
 {
-  u8 *res=NULL, *ipopts=NULL, off_[2]={0,64};
+  u8 *res=NULL, *ipopts=NULL, off_[2]={0,64/* df */};
   size_t ipoptslen=0, offlen=0;
   ip4_t src, dst;
   u16 *off;
@@ -885,13 +1006,17 @@ void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
   src=ncsdata->dev.get_srcip4();
 
   ipopts=(ncsdata->opts.check_ipopt_flag())?
-    hex_ahtoh(ncsdata->opts.get_ipopt_param().data(), &ipoptslen):NULL;
+    hex_ahtoh(ncsdata->opts.get_ipopt_param().data(),
+    &ipoptslen):NULL;
 
   ttl=(ncsdata->opts.check_ttl_flag())?std::stoi(ncsdata->opts.get_ttl_param())
     :random_num_u32(121, 255);
 
+  /* Пользователь решил что он умнее и укажет
+   * свой флаг, но это дойстойно. */
   if (ncsdata->opts.check_off_flag()) {
-    hex_atoh(ncsdata->opts.get_off_param().data(), off_, offlen);
+    hex_atoh(ncsdata->opts.get_off_param().data(),
+      off_, offlen);
     off=(u16*)off_;
   }
 
@@ -900,6 +1025,7 @@ void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
   if (!res)
     return;
   if (probe->probe)
+    /* Очищаем ведь уже создали новую */
     free(probe->probe);
 
   probe->probe=res;
@@ -910,13 +1036,15 @@ void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
 
 
 /*
- * Build icmp probe
+ * Создает ICMP4 пробу, ECHO, TSTAMP, TIME,
+ * если это ECHO то добавляет payload, остальные
+ * его не поддерживают.
  */
 void NESCAINIT::ni_icmprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
 {
-  u8 *msg=NULL, *data=NULL;
   size_t msglen=0, datalen=0;
+  u8 *msg=NULL, *data=NULL;
   int type=-1;
 
   probe->filter.chk=random_u16();
@@ -924,25 +1052,34 @@ void NESCAINIT::ni_icmprobe(NESCAPROBE *probe, NESCATARGET *target,
   switch (ncsmethod->method) {
     default:
     case M_ICMP_PING_ECHO:
-      msg=icmp4_msg_echo_build((u16)probe->filter.chk, random_u16(), (char*)data, &msglen);
+      msg=icmp4_msg_echo_build((u16)probe->filter.chk, random_u16(),
+        (char*)data, &msglen);
       type=ICMP4_ECHO;
       break;
     case M_ICMP_PING_INFO:
-      msg=icmp4_msg_info_build((u16)probe->filter.chk, random_u16(), &msglen);
+      msg=icmp4_msg_info_build((u16)probe->filter.chk, random_u16(),
+        &msglen);
       type=ICMP4_INFO;
       break;
     case M_ICMP_PING_TIME:
-      msg=icmp4_msg_tstamp_build((u16)probe->filter.chk, random_u16(), random_u32(), random_u32(), random_u32(), &msglen);
+      msg=icmp4_msg_tstamp_build((u16)probe->filter.chk, random_u16(),
+        random_u32(), random_u32(), random_u32(), &msglen);
       type=ICMP4_TSTAMP;
       break;
   }
   if (!msg)
-    return;
+    return; /* ретурн */
   if (data)
     free(data);
-  probe->probe=icmp_build(type, 0, msg, msglen, &probe->probelen);
+  probe->probe=icmp_build(type, /* код должен быть 0, мы не хост */(0), msg,
+    msglen, &probe->probelen);
   icmp4_check(probe->probe, probe->probelen, ncsdata->opts.check_badsum_flag());
   free(msg);
+
+
+  /* Клеем к ICMP4 во первых IP, во вторых MAC
+   * заголовки, что бы получить пакет который
+   * дойдет, а не пойдет нахуй. */
 
   ni_iprobe(probe, target, ncsdata, ncsmethod);
   ni_ethprobe(probe, target, ncsdata, ncsmethod);
@@ -950,13 +1087,15 @@ void NESCAINIT::ni_icmprobe(NESCAPROBE *probe, NESCATARGET *target,
 
 
 /*
- * Build arp probe
+ * Создаем ARP пакет, с операцией запроса,
+ * нужно только для ARP пинга, и дополняет
+ * поля probe.
  */
 void NESCAINIT::ni_arprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
 {
-  u8 *arp_op=NULL;
   mac_t dstmac_arp;
+  u8 *arp_op=NULL;
   size_t arpoplen;
   ip4_t tmp;
 
@@ -972,6 +1111,10 @@ void NESCAINIT::ni_arprobe(NESCAPROBE *probe, NESCATARGET *target,
     arp_op, arpoplen, &probe->probelen);
   free(arp_op);
 
+  /* Клеем ETH заголовок, еще более известный
+   * в этом файле как, MAC заголовок или
+   * 802.3 заголовок */
+
   ni_ethprobe(probe, target, ncsdata, ncsmethod);
   probe->filter.addr.ip4=tmp;
   probe->filter.addrtype=4;
@@ -979,7 +1122,9 @@ void NESCAINIT::ni_arprobe(NESCAPROBE *probe, NESCATARGET *target,
 
 
 /*
- * Build tcp probe
+ * Создаем TCP пакет, для всех типов
+ * сканирования портов, и пинг сканирования,
+ * дополняем probe.
  */
 void NESCAINIT::ni_tcprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod, int port)
@@ -992,6 +1137,9 @@ void NESCAINIT::ni_tcprobe(NESCAPROBE *probe, NESCATARGET *target,
   probe->filter.chk=random_u32();
   probe->filter.srcport=random_srcport();
   data=get_payload(&ncsdata->opts, &datalen);
+
+  /* Устанавливаем флаги согласуясь
+   * с методом. */
   switch (ncsmethod->method) {
     case M_TCP_PING_ACK:
     case M_TCP_ACK_SCAN:
@@ -1017,6 +1165,7 @@ void NESCAINIT::ni_tcprobe(NESCAPROBE *probe, NESCATARGET *target,
     case M_TCP_NULL_SCAN:
       break;
   }
+
   probe->probe=tcp_build((u16)probe->filter.srcport, port, (u32)probe->filter.chk, 0, 0,
     flags, 1024, 0, NULL, 0, data, datalen, &probe->probelen);
   if (data)
@@ -1027,13 +1176,15 @@ void NESCAINIT::ni_tcprobe(NESCAPROBE *probe, NESCATARGET *target,
     tmp, ncsdata->opts.check_badsum_flag());
 
   probe->filter.port=port;
+
   ni_iprobe(probe, target, ncsdata, ncsmethod);
   ni_ethprobe(probe, target, ncsdata, ncsmethod);
 }
 
 
 /*
- * Build udp probe
+ * Создает UDP пакет для UDP сканирования
+ * портов, и пинг сканирования.
  */
 void NESCAINIT::ni_udprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod, int port)
@@ -1060,13 +1211,16 @@ void NESCAINIT::ni_udprobe(NESCAPROBE *probe, NESCATARGET *target,
     tmp, ncsdata->opts.check_badsum_flag());
 
   probe->filter.port=port;
+
   ni_iprobe(probe, target, ncsdata, ncsmethod);
   ni_ethprobe(probe, target, ncsdata, ncsmethod);
 }
 
 
 /*
- * Build sctp probe
+ * Создает SCTP пакет для INIT пинга
+ * и сканирования портов, и COOKIE
+ * сканирования портов.
  */
 void NESCAINIT::ni_sctprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod, int port)
@@ -1080,23 +1234,38 @@ void NESCAINIT::ni_sctprobe(NESCAPROBE *probe, NESCATARGET *target,
     default:
     case M_SCTP_INIT_PING:
     case M_SCTP_INIT_SCAN:
+
+      /*
+       * INIT чанк имеющий vtag не 0, будет
+       * игнорироватся, или, покрайней
+       * мере ответа на него нету.
+       */
       probe->filter.chk=0;
-      chunk=sctp_init_build(SCTP_INIT, 0, random_u32(), random_u32(), random_u16(), random_u16(), random_u32(), &chunklen);
+      chunk=sctp_init_build(SCTP_INIT, 0, random_u32(),
+        random_u32(), random_u16(), random_u16(),
+        random_u32(), &chunklen);
       if (!chunk)
         return;
-      probe->probe=sctp_build((u16)probe->filter.srcport, port, (u32)probe->filter.chk, chunk, chunklen, &probe->probelen);
+
+      probe->probe=sctp_build((u16)probe->filter.srcport,
+          port, (u32)probe->filter.chk, chunk, chunklen,
+          &probe->probelen);
       free(chunk);
       break;
     case M_SCTP_COOKIE_SCAN:
       probe->filter.chk=random_u32();
-      chunk=sctp_chunk_build(SCTP_COOKIE_ECHO, 0, data, datalen, &chunklen);
+      chunk=sctp_chunk_build(SCTP_COOKIE_ECHO, 0, data,
+          datalen, &chunklen);
       if (!chunk)
         return;
-      probe->probe=sctp_build((u16)probe->filter.srcport, port, (u32)probe->filter.chk, chunk, chunklen, &probe->probelen);
+      probe->probe=sctp_build((u16)probe->filter.srcport, port,
+          (u32)probe->filter.chk, chunk, chunklen, &probe->probelen);
       free(chunk);
       break;
   }
-  sctp_check(probe->probe, probe->probelen, 0, ncsdata->opts.check_badsum_flag());
+
+  sctp_check(probe->probe, probe->probelen, 0,
+      ncsdata->opts.check_badsum_flag());
   if (data)
     free(data);
 
@@ -1107,39 +1276,50 @@ void NESCAINIT::ni_sctprobe(NESCAPROBE *probe, NESCATARGET *target,
 
 
 /*
- * Init probe
+ * Иницилизируем пробу для конкретной цели
+ * и конкретного метода, среди проб такие
+ * протоколы как, ARP, TCP, SCTP, UDP, ICMP.
  */
 void NESCAINIT::ni_initprobe(NESCATARGET *target, NESCADATA *ncsdata,
     NESCAMETHOD *ncsmethod)
 {
   NESCAPROBE *probe=new NESCAPROBE;
-  int port;
+  u16 port=0;
 
-  port=0;
   if (!ncsmethod->ports.empty()) {
+    /* Ищем следующий порт в методе. */
     if (ncsmethod->lastport>ncsmethod->ports.size()-1)
       ncsmethod->lastport=0;
     port=ncsmethod->ports.at(ncsmethod->lastport);
     ncsmethod->lastport++;
   }
 
-  if (ncsmethod->proto==PR_ICMP)
-    ni_icmprobe(probe, target, ncsdata, ncsmethod);
-  if (ncsmethod->proto==PR_SCTP)
-    ni_sctprobe(probe, target, ncsdata, ncsmethod, port);
-  if (ncsmethod->proto==PR_TCP)
-    ni_tcprobe(probe, target, ncsdata, ncsmethod, port);
-  if (ncsmethod->proto==PR_UDP)
-    ni_udprobe(probe, target, ncsdata, ncsmethod, port);
-  if (ncsmethod->proto==ETH_TYPE_ARP)
-    ni_arprobe(probe, target, ncsdata, ncsmethod);
+  switch (ncsmethod->proto) {
+    case PR_ICMP:
+      ni_icmprobe(probe, target, ncsdata, ncsmethod);
+      break;
+    case PR_SCTP:
+      ni_sctprobe(probe, target, ncsdata, ncsmethod, port);
+      break;
+    case PR_TCP:
+      ni_tcprobe(probe, target, ncsdata, ncsmethod, port);
+      break;
+    case PR_UDP:
+      ni_udprobe(probe, target, ncsdata, ncsmethod, port);
+      break;
+    case ETH_TYPE_ARP:
+      ni_arprobe(probe, target, ncsdata, ncsmethod);
+      break;
+  }
 
   probes.push_back(probe);
 }
 
 
 /*
- * Init res
+ * Иницилизирует результат куда будет
+ * принят пакет, добавляет в соответствующий
+ * вектор.
  */
 void NESCAINIT::ni_initres(NESCATARGET *target,
     NESCAMETHOD *ncsmethod)
@@ -1154,27 +1334,37 @@ void NESCAINIT::ni_initres(NESCATARGET *target,
 
 
 /*
- * Init
+ * Дьявольская функция с великим решением в виде
+ * ограничения целей для иницилизации, и продолжением
+ * с этого же места с повторным вызовом. Я не совсем
+ * уверен что все что в ней есть необходимо, но
+ * трогать не буду.
+ *
+ * Как раз она играет ключевую роль в создании
+ * последовательного выполнения по частям.
  */
 bool NESCAINIT::NI_INIT(std::vector<NESCATARGET*> targets,
     NESCADATA *ncsdata, bool ping, size_t max)
 {
   size_t i, j, k;
-  for (j=this->last_target;j<targets.size();j++,this->last_target=j) {
-    for (k=this->last_method;k<ni_methods.size();k++,this->last_method=k) {
-      for (i=this->last_num;i<=ni_methods[k].numprobes-1;i++,this->last_num=i) {
-        /* result init */
+  for (j=this->last_target;j<targets.size();j++,
+      this->last_target=j) {
+    for (k=this->last_method;k<ni_methods.size();k++,
+        this->last_method=k) {
+      for (i=this->last_num;i<=
+          ni_methods[k].numprobes-1/* по идеи сам метод
+                                    это одна из его проб */;
+          i++,this->last_num=i) {
+
         ni_initres(targets[j], &ni_methods[k]);
 
-        /* probe init */
         ni_initprobe(targets[j], ncsdata,
           &ni_methods[k]);
 
-        /* recv fd init */
         ni_initrecvfd(targets[j], &ncsdata->dev,
           &ncsdata->opts, ping);
 
-        /* stop if max */
+        /* Первышение лимита */
         if (this->total==max) {
           this->last_target=j;
           this->last_method=k;
@@ -1182,6 +1372,7 @@ bool NESCAINIT::NI_INIT(std::vector<NESCATARGET*> targets,
           this->total=0;
           return 0;
         }
+
         this->total++;
       }
       this->last_num=0;
@@ -1193,26 +1384,47 @@ bool NESCAINIT::NI_INIT(std::vector<NESCATARGET*> targets,
   return 1;
 }
 
+
+/*
+ * Возвращает результаты
+ */
 std::vector<NESCARESULT*> NESCAINIT::ni_results(void)
 {
   return this->results;
 }
 
+
+/*
+ * Возвращает пробы, или пакеты
+ */
 std::vector<NESCAPROBE*> NESCAINIT::ni_probes(void)
 {
   return this->probes;
 }
 
+
+/*
+ * Возвращает сокеты для приема
+ */
 std::vector<lr_t*> NESCAINIT::ni_recvfds(void)
 {
   return this->recvfds;
 }
 
+
+/*
+ * Возвращает сокет для отправки
+ */
 eth_t *NESCAINIT::ni_sendfd(void)
 {
   return this->sendfd;
 }
 
+
+/*
+ * Иницилизируем класс, ставим дефолтные
+ * значения.
+ */
 NESCASEND::NESCASEND(void)
 {
   ok=err=sendbytes=tot=stats=0;
@@ -1220,20 +1432,35 @@ NESCASEND::NESCASEND(void)
   return;
 }
 
-void NESCASEND::ns_setstats(void)
-{
-  this->stats=1;
-}
 
-void NESCASEND::ns_setpps(size_t pps)
-{
-  this->pps=pps;
-}
+/*
+ * Устанавливаем stats и pps, врятли
+ * тут нужно было это комментировать.
+ */
+void NESCASEND::ns_setstats(void) { this->stats=1; }
+void NESCASEND::ns_setpps(size_t pps) { this->pps=pps; }
 
-void NESCASEND::ns_send(eth_t *fd, std::vector<NESCAPROBE*> probes, size_t num)
+
+/*
+ * Функция по отправки вектора проб, и причем
+ * в ней отсутствует многопоточность, поскольку
+ * было замечено, что один поток для отправки
+ * работает быстрее 100-а примерно в 2 раза.
+ *
+ * Ставит первую временную точку, запускает цикл
+ * где начинает отправку, если она успешна прибовляет
+ * ok на 1, если нет, err на 1, сохраняет размер
+ * в байтах принятого пакета, и прибавляет его к
+ * sendbytes, повышает tot на 1. Если pps был
+ * превышем ставит задержку, что бы его восстановить.
+ * После цикла ставит вторую временную точку.
+ * Сохраняет обе. И если надо выводит статистику.
+ */
+void NESCASEND::ns_send(eth_t *fd, std::vector<NESCAPROBE*> probes,
+  size_t num)
 {
   struct timespec delay;
-  size_t i=0;
+  size_t i;
 
   delay.tv_sec=0;
   delay.tv_nsec=1000000000/this->pps;
@@ -1251,10 +1478,16 @@ void NESCASEND::ns_send(eth_t *fd, std::vector<NESCAPROBE*> probes, size_t num)
       nanosleep(&delay, NULL);
   }
   gettimeofday(&this->tstamp_e, NULL);
+
   if (this->stats)
     ns_stats();
 }
 
+
+/*
+ * Выводит статистику о отправке, именно это
+ * выводится при -stats.
+ */
 void NESCASEND::ns_stats(void)
 {
   double p;
@@ -1272,6 +1505,12 @@ void NESCASEND::ns_stats(void)
   ok=err=sendbytes=tot=0;
 }
 
+
+/*
+ * Получает время отправки одного пакета,
+ * в наносекундах имея при этом прошедшее
+ * время, и общее количество пакетов.
+ */
 long long NESCASEND::ns_ns(void)
 {
   long long start_ns, end_ns;
@@ -1282,12 +1521,21 @@ long long NESCASEND::ns_ns(void)
   return ((end_ns-start_ns)/this->tot);
 }
 
+
+/*
+ * Иницилизирует класс и его переменные.
+ */
 NESCARECV::NESCARECV(void)
 {
   ok=err=recvbytes=tot=stats=0;
   return;
 }
 
+
+/*
+ * Выводит статистику о приеме, которая
+ * видна при флаге -stats.
+ */
 void NESCARECV::nr_stats(void)
 {
   double p=(static_cast<double>(err)/tot)*100;
@@ -1304,34 +1552,43 @@ void NESCARECV::nr_stats(void)
   ok=err=recvbytes=tot=0;
 }
 
+
+/*
+ * Включает вывод статистики, для приема.
+ */
 void NESCARECV::nr_setstats(void)
 {
   this->stats=1;
 }
 
-void NESCARECV::_nr_recv(lr_t *fd, NESCAPROBE *probe, NESCARESULT *result)
+
+/*
+ * Главная функция по приему пакета, она принимает
+ * пакет, затем если это было успешно прибавляет
+ * к ok 1, и прибавляет размер полученного пакета
+ * к recvbytes, передает все нужно из фильтра в
+ * result. Если прием не успешен прибавляет к err 1.
+ * И при этом каждый раз прибавляет tot на 1.
+ */
+void NESCARECV::_nr_recv(lr_t *fd, NESCAPROBE *probe,
+  NESCARESULT *result)
 {
-  ssize_t ret=0;
+  ssize_t ret;
 
-  /* recv packet */
-  ret=lr_live(fd, &result->frame, MAXPKTLEN, (void*)&probe->filter);
+  ret=lr_live(fd, &result->frame, MAXPKTLEN,
+    (void*)&probe->filter);
 
-  if (ret>0) {
-    /* res update */
+  if (ret>0) { /* если поставить просто ret,
+   то пизда всему */
     stoprecv.lock();
-
-    /* fill res */
     result->state=probe->filter.state;
     result->port=probe->filter.port;
     result->frmlen=ret;
     result->t_end=fd->tstamp_e;
     result->t_start=fd->tstamp_s;
     result->ok=1;
-
-    /* stats */
     ok++;
     recvbytes+=ret;
-
     stoprecv.unlock();
   }
   else {
@@ -1341,12 +1598,23 @@ void NESCARECV::_nr_recv(lr_t *fd, NESCAPROBE *probe, NESCARESULT *result)
     err++;
     stoprecv.unlock();
   }
+
   stoprecv.lock();
   tot++;
   stoprecv.unlock();
 }
 
-void NESCARECV::nr_recv(std::vector<lr_t*> fds, std::vector<NESCAPROBE*> probes, std::vector<NESCARESULT*> results)
+
+/*
+ * Запускает функцию выше в пуле потоков, на
+ * каждую пробу один поток. В начале ставит
+ * первую временную точку, в конце, ставит
+ * вторую, и сохраняет их. После этого если
+ * нужно выводит статистику.
+ */
+void NESCARECV::nr_recv(std::vector<lr_t*> fds,
+  std::vector<NESCAPROBE*> probes, std::vector
+  <NESCARESULT*> results)
 {
   std::vector<std::future<void>> futures;
   size_t threads, i;
@@ -1358,7 +1626,8 @@ void NESCARECV::nr_recv(std::vector<lr_t*> fds, std::vector<NESCAPROBE*> probes,
   NESCAPOOL pool(threads);
   gettimeofday(&this->tstamp_s, NULL);
   for (;i<probes.size();i++) {
-    futures.emplace_back(pool.enqueue(std::bind(&NESCARECV::_nr_recv, this, fds.at(i), probes.at(i), results.at(i))));
+    futures.emplace_back(pool.enqueue(std::bind(&NESCARECV::_nr_recv, this,
+      fds.at(i), probes.at(i), results.at(i))));
     if (futures.size()>=static_cast<size_t>(threads)) {
       for (auto&future:futures)
         future.get();
@@ -1372,11 +1641,23 @@ void NESCARECV::nr_recv(std::vector<lr_t*> fds, std::vector<NESCAPROBE*> probes,
     nr_stats();
 }
 
+
+/*
+ * Ключевая функция в движке, выполняет
+ * ничего, и это так, ну и да, возвращает
+ * ничего.
+ */
 NESCAREAD::NESCAREAD(void)
 {
   return;
 }
 
+
+/*
+ * Принимает результаты, и смотрит их, обновляя
+ * цели. Именно тут открытые и другие порты
+ * добавляются к цели.
+ */
 void NESCAREAD::nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARGET*> targets)
 {
   NESCATARGET *t=NULL;
@@ -1389,7 +1670,8 @@ void NESCAREAD::nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARG
     if (it!=targets.end()) {
       t=*it;
       switch (res->method) {
-        /* Ping */
+
+        /* Чтение для пинг сканирования */
         case M_ICMP_PING_ECHO:
         case M_SCTP_INIT_PING:
         case M_UDP_PING:
@@ -1409,11 +1691,13 @@ void NESCAREAD::nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARG
           t->add_time(res->t_start, res->t_end, res->method);
           break;
 
-        /* Scan */
+        /* Чтение для сканирования портов */
         case M_TCP_SYN_SCAN:
         case M_TCP_WINDOW_SCAN:
         case M_SCTP_INIT_SCAN:
         case M_TCP_ACK_SCAN:
+
+          /* Если пакет не был получен вообще */
           res->state=(!res->ok)?PORT_FILTER:res->state;
           goto add;
 
@@ -1434,6 +1718,11 @@ add:
   }
 }
 
+
+/*
+ * Получает строчку вида, <.method,...,>.
+ * Она нужна для статистики.
+ */
 std::string NESCAINIT::ni_method(void)
 {
   std::string res;
@@ -1443,6 +1732,11 @@ std::string NESCAINIT::ni_method(void)
   return res;
 }
 
+
+/*
+ * Настраивает движок, ставит pps, включает
+ * статистику если нужно, т.д
+ */
 void _NESCAENGINE_::NE_CONFIGURE(NESCADATA *ncsdata, bool ping)
 {
   size_t pps;
@@ -1461,7 +1755,34 @@ void _NESCAENGINE_::NE_CONFIGURE(NESCADATA *ncsdata, bool ping)
   }
 }
 
-_NESCAENGINE_::_NESCAENGINE_(NESCADATA *ncsdata, bool ping) : NESCAINIT(ncsdata, ping)
+
+/*
+ * Главная функция в движке, вначале получает цели для
+ * сканирования, затем настраивает движок, и запускает
+ * петлю.
+ *
+ * В этой петле вначале иницилизируется нужно количество
+ * сокетов, пакетов, результатов, и т.д. Не превышая
+ * максимальное количество открытых сокетов. Затем
+ * иницилизирует первый поток на примем, второй на
+ * отправку, и запускает их, поток на прием запускается
+ * первым, и выходит такая схема.
+ *
+ * [поток 1] открывает пул потоков где ожидаются пакеты,
+ *   (уже с настроенными фильтрами и буферами),
+ *     [поток пула 1],[поток пула 2],[...]....,
+ *
+ * [поток 2] начинает отправку заранее заготовленных
+ *   пакетов пока первый поток ждет ответы.
+ *
+ * Затем когда завершены оба потока, вызывается функция
+ * на сохранение результатов, и очищаются пробы, сокеты,
+ * результаты, после этого процесса. Потом проверяет
+ * остались ли еще цели, и если да, то запускает это еще
+ * раз.
+ */
+_NESCAENGINE_::_NESCAENGINE_(NESCADATA *ncsdata, bool ping)
+  : NESCAINIT(ncsdata, ping)
 {
   forscan=((!ping)?ncsdata->get_oktargets():ncsdata->targets);
   NE_CONFIGURE(ncsdata, ping);

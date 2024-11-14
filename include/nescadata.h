@@ -115,6 +115,7 @@
 #define IDOPT_NUM_SCAN  51
 #define IDOPT_S         52
 #define IDOPT_DETAL     53
+#define IDOPT_V         54
 
 #define SPLITOPT_DEL   ','
 
@@ -355,6 +356,8 @@ class NESCAOPTS
 
   bool detal_flag;
 
+  bool v_flag;
+
   std::vector<_cfgopt> opts;
   std::string cfgpath;
   void opts_apply(int rez, std::string val);
@@ -536,6 +539,8 @@ public:
   bool        check_s_flag(void);
   void        set_detal_flag(void);
   bool        check_detal_flag(void);
+  void        set_v_flag(void);
+  bool        check_v_flag(void);
 };
 
 

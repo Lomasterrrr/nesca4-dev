@@ -50,6 +50,7 @@ class NESCAPRINT
   void usage(int argc, char **argv);
   void error(const std::string &err);
   void warning(const std::string &warn);
+  void note(const std::string &note);
   void finish(NESCADATA *ncsdata);
 
   void nescatarget(NESCATARGET *target, bool onlyok, bool cut);
