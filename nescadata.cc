@@ -110,6 +110,7 @@ struct option longopts[]={
   {"random-ip", 1, 0, IDOPT_RADNOM_IP},
   {"detal", 0, 0, IDOPT_DETAL},
   {"v", 0, 0, IDOPT_V},
+  {"html", 1, 0, IDOPT_HTML},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -175,6 +176,8 @@ void NESCAOPTS::opts_init(void)
   s_param.clear();
   detal_flag=0;
   v_flag=0;
+  html_flag=0;
+  html_param="";
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -540,6 +543,7 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_S:         set_s_flag();          set_s_param(val);                        break;
     case IDOPT_DETAL:     set_detal_flag();                                               break;
     case IDOPT_V:         set_v_flag();                                                   break;
+    case IDOPT_HTML:      set_html_flag();       set_html_param(val);                     break;
 
   }
 }
@@ -1562,6 +1566,15 @@ bool NESCAOPTS::check_v_flag(void) { return this->v_flag; }
 
 
 /*
+ * -html <html_param>
+ */
+void NESCAOPTS::set_html_param(const std::string &html_param) { this->html_param=html_param; }
+std::string NESCAOPTS::get_html_param(void) { return this->html_param; }
+void NESCAOPTS::set_html_flag(void) { this->html_flag=1; }
+bool NESCAOPTS::check_html_flag(void) { return this->html_flag; }
+
+
+/*
  * It searches the longopts array, looks for the <opt> option, if it finds it,
  * checks if it has a parameter, if so, it returns true, otherwise it returns
  * false.
@@ -2335,7 +2348,6 @@ std::vector<std::string> NESCARAWTARGETS::unload(u128 num)
   else
     j=num;
 
-  /* unload from cidr or range */
   if (!grouptargets.empty()) {
 writecidr:
     if (j&&lastgroup<=(grouptargets.size()-1)) {
@@ -2364,8 +2376,6 @@ writecidr:
     }
 #undef p
   }
-
-  /* unload from cidr6 or range6 */
   if (!grouptargets6.empty()) {
 writecidr6:
     if (j&&lastgroup6<=(grouptargets6.size()-1)) {
@@ -2394,8 +2404,6 @@ writecidr6:
     }
 #undef p
   }
-
-  /* unload from ipv4 or ipv6 */
   if (!ipv4.empty()&&j) {
 writeip4:
     if (j&&lastip4<=(ipv4.size()-1)) {
@@ -2412,7 +2420,6 @@ writeip6:
       goto writeip6;
     }
   }
-
   return res;
 }
 

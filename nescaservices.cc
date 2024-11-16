@@ -93,8 +93,9 @@ bool NCSFTPSERVICE::check(NESCATARGET *target, int port)
       break;
 
   /*
-   * ftp header
-   * 220---------- Welcome to Pure-FTPd 1.0.52 [privsep] [TLS] ----------
+   * Добавляем FTP заголовок, который приходит в сообщении приветствия,
+   * в ответ на подключение. Типа такого, 220 Welcome to Pure-FTPd
+   * 1.0.52 [privsep] [TLS]
    */
   if (tmp.length()>0) {
     target->add_service(target->get_real_port(pos), S_FTP, s, e);
@@ -284,6 +285,11 @@ NESCASERVICES::NESCASERVICES(NESCADATA *ncsdata)
 
   for (i=0;i<S_NUM;i++) {
     res=forprobe(i, ncsdata);
+    if (res.empty())
+      continue;
+    if (ncsdata->opts.check_stats_flag())
+      std::cout << "NESCASERVICES for " << res.size()
+        <<" targets on " << i << " service\n";
     switch (i) {
       case S_FTP: FTPSERVICE(res, ncsdata); break;
       case S_HTTP: HTTPSERVICE(res, ncsdata); break;

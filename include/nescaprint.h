@@ -28,10 +28,15 @@
 #include <unordered_map>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
+#include <ctime>
 
 #include "../libncsnet/ncsnet/sys/types.h"
 #include "../libncsnet/ncsnet/utils.h"
 #include "../nesca-config.h"
+
+#define DEFAULT_STYLE_PATH \
+  "resources/style.css"
 
 class NESCATARGET;
 class NESCADATA;
@@ -40,11 +45,11 @@ class NESCADEVICE;
 
 u8 strmethod(int m);
 
+std::string is_service(NESCAPORT *port);
+std::string portblock(NESCAPORT *port, bool onlyok);
+
 class NESCAPRINT
 {
-  std::string is_service(NESCAPORT *port);
-  std::string portblock(NESCAPORT *port, bool onlyok);
-
   public:
   void run(void);
   void usage(int argc, char **argv);
@@ -61,8 +66,25 @@ class NESCAPRINT
 
 class NESCAHTML
 {
+  /* private */
+  size_t bodyclose_pos=0, headerclose_pos=0;
+  std::vector<std::string> buf;
+  std::string path;
+  bool open=0;
 
+  std::string nh_fmtdate(const std::string &fmt);
+  void nh_addtobuf(const std::string &txt);
+
+  void nh_style(const std::string &filepath);
+  void nh_headeropen(void);
+  void nh_headerclose(void);
+  void nh_bodyopen(void);
+  void nh_bodyclose(void);
+  void NH_OPEN(void);
+  void NH_ADD(NESCATARGET *target, NESCADATA *ncsdata, bool onlyok, bool cut);
+  void NH_CLOSE(void);
+  /* private */
 public:
-  void nh_init(void);
-  void nh_updt(NESCADATA *ncsdata);
+  void NHTARGETS(NESCADATA *ncsdata);
+  void nh_setpath(const std::string &path);
 };

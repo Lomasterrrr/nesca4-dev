@@ -29,6 +29,7 @@
 
 NESCAPRINT  ncsprint;
 NESCADATA   ncsdata;
+NESCAHTML   ncshtml;
 static int  nesca4(void);
 
 /*
@@ -78,6 +79,10 @@ int nesca4(void)
     for (const auto&t:realgroup)
       ncsdata.add_target(t);
 
+    if (ncsdata.opts.check_stats_flag())
+      std::cout<<"NESCARAWTARGETS unload "<<
+        realgroup.size()<<" targets\n";
+
     /* LOOP */
     if (!ncsdata.opts.check_n_ping_flag())
       _NESCAENGINE_ ping(&ncsdata, 1);
@@ -88,6 +93,7 @@ int nesca4(void)
       _NESCAENGINE_ scan(&ncsdata, 0);
     NESCASERVICES proc(&ncsdata);
     ncsprint.PRINTTARGETS(&ncsdata);
+    ncshtml.NHTARGETS(&ncsdata);
     /* LOOP */
 
     i+=grouplen;

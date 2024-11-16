@@ -116,6 +116,7 @@
 #define IDOPT_S         52
 #define IDOPT_DETAL     53
 #define IDOPT_V         54
+#define IDOPT_HTML      55
 
 #define SPLITOPT_DEL   ','
 
@@ -358,6 +359,9 @@ class NESCAOPTS
 
   bool v_flag;
 
+  bool html_flag;
+  std::string html_param;
+
   std::vector<_cfgopt> opts;
   std::string cfgpath;
   void opts_apply(int rez, std::string val);
@@ -541,6 +545,11 @@ public:
   bool        check_detal_flag(void);
   void        set_v_flag(void);
   bool        check_v_flag(void);
+
+  void        set_html_param(const std::string &html_param);
+  std::string get_html_param(void);
+  void        set_html_flag(void);
+  bool        check_html_flag(void);
 };
 
 
