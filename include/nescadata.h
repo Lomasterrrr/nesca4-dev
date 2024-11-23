@@ -218,6 +218,7 @@ public:
   size_t get_num_ip(void);
   size_t get_num_dns(void);
   bool openports(void);
+  bool initservices(void);
   std::string get_ip(size_t id);
   std::string get_dns(size_t id);
   std::string get_mainip(void);
@@ -371,6 +372,8 @@ class NESCAOPTS
   bool include_apply(struct _cfgopt *res, char *errbuf);
 
 public:
+  std::string runcmd;
+
   void opts_init(void);
   void args_apply(int argc, char **argv, NESCADATA *ncsdata, NESCAPRINT *ncsprint);
   void cfg_apply(const std::string &path, NESCADATA *ncsdata, NESCAPRINT *ncsprint);
@@ -741,7 +744,6 @@ public:
   std::vector<NESCATARGET*> targets;
   NESCAOPTS                 opts;
   NESCADEVICE               dev;
-
   u128                      ok;
   bool                      tmplast;
   struct timeval            tstamp_s, tstamp_e;

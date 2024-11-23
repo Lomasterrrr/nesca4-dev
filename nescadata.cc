@@ -117,6 +117,7 @@ struct option longopts[]={
 void NESCAOPTS::opts_init(void)
 {
   ncsprint=NULL;
+  runcmd="";
   import_param="";
   import_flag=0;
   gmax_param=gmin_param=gplus_param=0;
@@ -206,6 +207,15 @@ bool NESCATARGET::openports(void)
   for (auto&port:this->ports)
     if (isokport(&port))
       return 1;
+  return 0;
+}
+
+bool NESCATARGET::initservices(void)
+{
+  for (const auto&port:this->ports)
+    for (const auto&s:port.services)
+      if (s.init)
+        return 1;
   return 0;
 }
 
@@ -554,7 +564,14 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
  */
 void NESCAOPTS::args_apply(int argc, char **argv, NESCADATA *ncsdata, NESCAPRINT *ncsprint)
 {
-  int rez, index=0;
+  int rez, index=0, i;
+
+  for (i=0;i<argc;i++) {
+    this->runcmd+=argv[i];
+    this->runcmd+=" ";
+  }
+  this->runcmd.pop_back();
+
   this->ncsprint=ncsprint;
   while ((rez=getopt_long_only(argc, argv, "", longopts, &index))!=-1) {
     if (rez==IDOPT_HELP) ncsprint->usage(argc, argv);

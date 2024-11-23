@@ -84,6 +84,12 @@ int nesca4(void)
         realgroup.size()<<" targets\n";
 
     /* LOOP */
+    std::atomic<bool> running(true);
+    if (ncsdata.opts.check_stats_flag())
+      running=0;
+    std::thread updater(nescawatting,
+      std::ref(running), i, &ncsdata.dev);
+
     if (!ncsdata.opts.check_n_ping_flag())
       _NESCAENGINE_ ping(&ncsdata, 1);
     else ncsdata.set_all_targets_ok();
@@ -92,6 +98,10 @@ int nesca4(void)
     if (!ncsdata.opts.check_sn_flag())
       _NESCAENGINE_ scan(&ncsdata, 0);
     NESCASERVICES proc(&ncsdata);
+
+    running=0;
+    updater.join();
+
     ncsprint.PRINTTARGETS(&ncsdata);
     ncshtml.NHTARGETS(&ncsdata);
     /* LOOP */

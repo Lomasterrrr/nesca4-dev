@@ -78,15 +78,9 @@
 #include "../libncsnet/ncsnet/linuxread.h"
 #include "nescadata.h"
 
-/*
- * types
- */
 #define T_PING                      1
 #define T_SCAN                      2
 
-/*
- * methods
- */
 #define M_ICMP_PING_ECHO            1
 #define M_ICMP_PING_INFO            2
 #define M_ICMP_PING_TIME            3
@@ -107,9 +101,6 @@
 #define M_UDP_SCAN                  18
 #define M_ARP_PING                  19
 
-/*
- * states
- */
 #define PORT_OPEN                 0
 #define PORT_CLOSED               1
 #define PORT_FILTER               2
@@ -141,6 +132,12 @@
 
 #define MAXPKTLEN 2048
 
+#define GETELAPSED(start, end)                                                 \
+  (((end).tv_sec - (start).tv_sec) * 1000000000LL + (end).tv_nsec -            \
+   (start).tv_nsec)
+
+#define _MSGLEN 4096
+
 bool NESCARESOLV_try(NESCATARGET *target, NESCADATA *ncsdata);
 bool _NESCARESOLV_(std::vector<NESCATARGET*> targets, NESCADATA *ncsdata);
 
@@ -148,10 +145,12 @@ class NESCAPOOL {
 public:
   explicit NESCAPOOL(size_t numthreads);
   template <class F,class...Args>
-  auto enqueue(F&&f,Args&&...args)->std::future<typename std::result_of<F(Args...)>::type>
+  auto enqueue(F&&f,Args&&...args)->std::future<typename std::result_of
+  <F(Args...)>::type>
   {
     using return_type=typename std::result_of<F(Args...)>::type;
-    auto task=std::make_shared<std::packaged_task<return_type()>>(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+    auto task=std::make_shared<std::packaged_task<return_type()>>
+      (std::bind(std::forward<F>(f), std::forward<Args>(args)...));
     std::future<return_type> result=task->get_future(); {
       std::unique_lock<std::mutex> lock(queuemutex);
       if (stop){throw std::runtime_error("enqueue on stopped threadpool");}
@@ -170,13 +169,7 @@ private:
   bool stop;
 };
 
-#define GETELAPSED(start, end)                                                 \
-  (((end).tv_sec - (start).tv_sec) * 1000000000LL + (end).tv_nsec -            \
-   (start).tv_nsec)
-
-#define _MSGLEN 4096
-typedef struct __arg_
-{
+typedef struct __arg_ {
   int addrtype, method,
     port, proto, state,
     srcport;
@@ -187,16 +180,14 @@ typedef struct __arg_
   }addr;
 } ___arg;
 
-struct NESCAPROBE
-{
+struct NESCAPROBE {
   ___arg  filter;
   size_t  probelen;
   u8     *probe;
   int     method;
 };
 
-struct NESCARESULT
-{
+struct NESCARESULT {
   std::string c;
   u8 *frame;
   size_t frmlen;
@@ -205,8 +196,7 @@ struct NESCARESULT
   bool ok;
 };
 
-class NESCAINIT
-{
+class NESCAINIT {
   protected:
   std::vector<lr_t*>        recvfds;
   eth_t                    *sendfd=NULL;
@@ -261,8 +251,7 @@ class NESCAINIT
   ~NESCAINIT(void);
 };
 
-class NESCARECV
-{
+class NESCARECV {
   protected:
   struct timeval tstamp_e, tstamp_s;
   size_t recvbytes, ok, err, tot;
@@ -283,8 +272,7 @@ class NESCARECV
 
 };
 
-class NESCASEND
-{
+class NESCASEND {
   protected:
   struct timeval tstamp_e, tstamp_s;
   size_t sendbytes, ok, err, tot, pps;
@@ -303,11 +291,11 @@ class NESCASEND
   long long ns_ns(void);
 };
 
-class NESCAREAD
-{
+class NESCAREAD {
   public:
   NESCAREAD(void);
-  void nr_read(std::vector<NESCARESULT*> results, std::vector<NESCATARGET*> targets);
+  void nr_read(std::vector<NESCARESULT*> results,
+    std::vector<NESCATARGET*> targets);
 };
 
 class _NESCAENGINE_ : public NESCASEND, public NESCAINIT,
@@ -315,6 +303,7 @@ class _NESCAENGINE_ : public NESCASEND, public NESCAINIT,
 {
   std::vector<NESCATARGET*> forscan;
   bool ret;
+
   void NE_CONFIGURE(NESCADATA *ncsdata, bool ping);
   void NE_GROUPS(NESCADATA *ncsdata);
 
