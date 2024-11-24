@@ -306,6 +306,14 @@ void NESCAPRINT::finish(NESCADATA *ncsdata)
   std::cout << util_timediff(ncsdata->tstamp_s, ncsdata->tstamp_e) << "\n";
 }
 
+
+
+
+/* NESCA4 STATUS BAR */
+std::string NESCASTATUS="";
+void nescastatus(const std::string &status) {
+  NESCASTATUS=status;
+}
 static std::string uint128_to_string(__uint128_t value)
 {
   std::string res;
@@ -317,7 +325,6 @@ static std::string uint128_to_string(__uint128_t value)
   }
   return res;
 }
-
 static std::string firstline(const std::string& path)
 {
   std::ifstream file(path);
@@ -331,7 +338,6 @@ static std::string firstline(const std::string& path)
 
   return "";
 }
-
 static size_t ccalc(size_t *a, size_t *b, short issize_t)
 {
   if (*b>=*a)
@@ -344,7 +350,6 @@ static size_t ccalc(size_t *a, size_t *b, short issize_t)
       return sizeof(u32)-*a+*b;
   }
 }
-
 static std::string getstatsdevice(NESCADEVICE *ncsdev)
 {
   static size_t startrx=SIZE_MAX, starttx=SIZE_MAX;
@@ -369,7 +374,6 @@ static std::string getstatsdevice(NESCADEVICE *ncsdev)
   res=(util_bytesconv(rx)+"  "+util_bytesconv(tx));
   return res;
 }
-
 void nescawatting(std::atomic<bool> &running, __uint128_t i,
     NESCADEVICE *ncsdev)
 {
@@ -377,12 +381,14 @@ void nescawatting(std::atomic<bool> &running, __uint128_t i,
   size_t ident;
 
   ident=0;
-
   for (;running;) {
     std::ostringstream oss;
-    oss << symbols[ident] << " SCANNING "
-      << uint128_to_string(i) <<
-      " completed  " << getstatsdevice(ncsdev);
+
+    oss << symbols[ident] << " PASSED " <<
+      uint128_to_string(i) << "    " <<
+      NESCASTATUS << "    " <<
+      getstatsdevice(ncsdev);
+
     line=oss.str();
     std::cout << "\r" << line << std::flush;
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -391,6 +397,10 @@ void nescawatting(std::atomic<bool> &running, __uint128_t i,
   }
   std::cout << "\r" << std::string((line.size()), ' ') << "\r" << std::flush;
 }
+/* NESCA4 STATUS BAR */
+
+
+
 
 /*
  * Print class NESCADEVICE

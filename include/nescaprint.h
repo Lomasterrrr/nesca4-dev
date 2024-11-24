@@ -68,6 +68,8 @@ class NESCAPRINT
   void PRINTTARGETS(NESCADATA *ncsdata);
 };
 
+void nescastatus(const std::string &status);
+
 void nescawatting(std::atomic<bool> &running, __uint128_t i,
   NESCADEVICE *ncsdev);
 

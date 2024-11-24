@@ -89,19 +89,20 @@ int nesca4(void)
       running=0;
     std::thread updater(nescawatting,
       std::ref(running), i, &ncsdata.dev);
-
+    nescastatus("PING SCANNING");
     if (!ncsdata.opts.check_n_ping_flag())
       _NESCAENGINE_ ping(&ncsdata, 1);
     else ncsdata.set_all_targets_ok();
+    nescastatus("DNS RESOLUTION");
     if (!ncsdata.opts.check_n_flag())
       _NESCARESOLV_(ncsdata.get_oktargets(), &ncsdata);
+    nescastatus("PORTS SCANNING");
     if (!ncsdata.opts.check_sn_flag())
       _NESCAENGINE_ scan(&ncsdata, 0);
+    nescastatus("SERVICE SCANNING");
     NESCASERVICES proc(&ncsdata);
-
     running=0;
     updater.join();
-
     ncsprint.PRINTTARGETS(&ncsdata);
     ncshtml.NHTARGETS(&ncsdata);
     /* LOOP */
