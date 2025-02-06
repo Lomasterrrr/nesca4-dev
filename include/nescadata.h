@@ -127,10 +127,9 @@
 #define INCLUDE_TOKEN  "INCLUDE"
 #define _ERRBUFMAXLEN   1024
 
+#define S_NUM           2
 #define S_HTTP          0
 #define S_FTP           1
-
-#define S_NUM           2
 
 class NESCADATA;
 typedef __uint128_t u128;
@@ -766,6 +765,5 @@ std::string util_pps(const struct timeval& start,
     const struct timeval& end, size_t total);
 bool isokport(NESCAPORT *p);
 int enservicekey(int service, int port, int id);
-
 
 #endif

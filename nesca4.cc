@@ -39,7 +39,6 @@ int main(int argc, char **argv)
 {
   if (argc<=1)
     ncsprint.usage(argc, argv);
-
   ncsprint.run();
   ncsdata.opts.opts_init();
   ncsdata.opts.cfg_apply("config/default.cfg", &ncsdata, &ncsprint);
@@ -51,7 +50,6 @@ int main(int argc, char **argv)
   ncsdata.opts.opts_validate();
   ncsdata.dev.init(&ncsprint, &ncsdata.opts);
   ncsdata.rawtargets.load(argc, argv, &ncsdata.opts, &ncsprint, &ncsdata.dev);
-
   return nesca4();
 }
 
@@ -100,7 +98,7 @@ int nesca4(void)
     if (!ncsdata.opts.check_sn_flag())
       _NESCAENGINE_ scan(&ncsdata, 0);
     nescastatus("SERVICE SCANNING");
-    NESCASERVICES proc(&ncsdata);
+    NESCAPROCESSING proc(&ncsdata);
     running=0;
     updater.join();
     ncsprint.PRINTTARGETS(&ncsdata);

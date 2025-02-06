@@ -23,6 +23,7 @@
 */
 
 #pragma once
+#include <future>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -31,41 +32,64 @@
 #include "nescadata.h"
 
 /*
- * Each class for working with any service must have the
- * following functions,
+ * CHECK FUNCTIONS:
+ *   bool <SERVICE>_chk_<NUM>(...);
  *
- * The main function that combines the others,
- *   void <SERVICE>SERVICE(....)
- *
- * To check if the service is available,
- *   bool check(...)
+ * METHOD FUNCTIONS:
+ *   bool <SERVICE>_m_<DATATYPE,...,>(...);
  */
 
-class NCSFTPSERVICE
+class NESCAPROCESSINGCORPUS
 {
-  protected:
-  bool check(NESCATARGET *target, int port);
+  std::vector< std::function<bool(NESCATARGET *, int,
+      long long, NESCADATA *)>> checks, methods;
+  size_t nummethods=0, numchecks=0;
+  bool checksstate=0;
+  void _set_general_(std::function<bool(NESCATARGET *, int,
+      long long, NESCADATA *)> func, bool check)
+  {
+    if (!check) {
+      this->methods.push_back(func);
+      nummethods++;
+      return;
+    }
+    this->checks.push_back(func);
+    numchecks++;
+  }
+  void __exec_check(NESCATARGET *target, int port,
+    long long timeout, NESCADATA *ncsdata, size_t num);
+  void __exec_method(NESCATARGET *target, int port,
+    long long timeout, NESCADATA *ncsdata, size_t num);
+public:
+  void setmethod(std::function<bool(NESCATARGET *, int,
+      long long, NESCADATA *)> method) {
+    return _set_general_(method, 0);
+  }
+  void setcheck(std::function<bool(NESCATARGET *, int,
+      long long, NESCADATA *)> method) {
+    return _set_general_(method, 1);
+  }
+  void exec(NESCATARGET *target, int port,
+    long long timeout, NESCADATA *ncsdata);
+};
 
-  public:
-  void FTPSERVICE(std::map<NESCATARGET*,std::vector<int>> targets,
+class NESCAPROCESSING
+{
+  std::map<NESCATARGET*, std::vector<int>> targets;
+  std::vector<NESCAPROCESSINGCORPUS> methods;
+
+  void INIT(NESCADATA *ncsdata);
+  void EXECMETHOD(NESCATARGET *target, std::vector<int> ports,
     NESCADATA *ncsdata);
+  void EXEC(NESCADATA *ncsdata);
+
+public:
+  NESCAPROCESSING(NESCADATA *ncsdata);
 };
 
-class NCSHTTPSERVICE
-{
-  protected:
-  bool check(NESCATARGET *target, int port);
-
-  public:
-  void HTTPSERVICE(std::map<NESCATARGET*,std::vector<int>> targets,
-    NESCADATA *ncsdata);
-};
-
-class NESCASERVICES : public NCSHTTPSERVICE, public NCSFTPSERVICE
-{
-  std::map<NESCATARGET*, std::vector<int>>
-    forprobe(int service, NESCADATA *ncsdata);
-  public:
-  NESCASERVICES(NESCADATA *ncsdata);
-};
-
+bool http_chk_0(NESCATARGET *target, int port,
+  long long timeout, NESCADATA *ncsdata);
+bool ftp_chk_0(NESCATARGET *target, int port,
+  long long timeout, NESCADATA *ncsdata);
+bool http_m_htmlredir(NESCATARGET *target, int port,
+  long long timeout, NESCADATA *ncsdata);

@@ -3535,14 +3535,12 @@ std::string util_timediff(const struct timeval& start,
 std::string util_pps(const struct timeval& start,
     const struct timeval& end, size_t total)
 {
-  long s, mc, pps;
+  long pps;
   double d;
-
-  s=end.tv_sec-start.tv_sec;
-  mc=end.tv_usec-start.tv_usec;
-  if (s<0||(s==0&&mc<0))
-    return "0/pps";
-  d=s+mc/1e6;
+  d=(end.tv_sec-start.tv_sec)+
+    (end.tv_usec-start.tv_usec)/1e6;
+  if (d<0)
+    return "0 pps";
   if (d<1.0)
     pps=total;
   else
@@ -3578,4 +3576,3 @@ bool isokport(NESCAPORT *p)
   }
   return 0;
 }
-
