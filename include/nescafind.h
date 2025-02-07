@@ -22,7 +22,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#pragma once
+#ifndef NESCAFIND_H
+#define NESCAFIND_H
+
 #include <iostream>
 #include <vector>
 #include <sstream>
@@ -43,7 +45,14 @@ class NESCATARGET;
 #define FIND_IP             5
 #define FIND_FTP_HELLO      6
 
-struct NESCAFINDLINE { std::string node,info; int find; bool bruteforce;};
+/*
+ * regex:
+ *   R'\b173\.194\.(?:[0-9]{1,3})\.(?:[0-9]{1,3})\b', 'GOOOGLE', 0, 5;
+ * no-regex:
+ *   '173', 'GOOOGLE', 0, 5;
+ */
+
+struct NESCAFINDLINE { std::string node,info; int find; bool bruteforce,regex;};
 struct NESCAFINDRESULT { std::string info; bool bruteforce, ok;};
 class NESCAFIND {
   std::string path;
@@ -54,3 +63,5 @@ class NESCAFIND {
 public:
   NESCAFIND(NESCADATA *ncsdata);
 };
+
+#endif

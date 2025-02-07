@@ -1,3 +1,5 @@
+check: include/nescafind.h
+
 'admin/index.html','auth',1,0;
 'login','auth',1,0;
 'admin/index.html','auth',1,0;
@@ -86,6 +88,3 @@
 '_gateway','system gateway dns',0,4 ;
 'localhost','system local dns',0,4  ;
 '172.217.','IPv4 google',0,5        ;
-
-'node', 'info', bruteforce?, find <semicolor>
-for find check: include/nescafind.h

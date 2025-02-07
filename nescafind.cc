@@ -23,9 +23,11 @@
 */
 
 #include "include/nescafind.h"
+#include "include/nescadata.h"
 #include <sstream>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 NESCAFINDLINE NESCAFIND::lineget(const std::string &txt)
 {
@@ -38,6 +40,8 @@ NESCAFINDLINE NESCAFIND::lineget(const std::string &txt)
   if (txt.empty())
     return {};
 
+  if (txt[0]=='r'||txt[0]=='R')
+    res.regex=1;
   for (o=str=num=num2=0,arg=1;
       o<txt.length();o++) {
     if (txt[o]=='\''&&txt[(o-1)]!='\\') {
@@ -177,8 +181,6 @@ std::vector<NESCAFINDLINE> NESCAFIND::fileget(void)
 }
 
 /* from old NESCA4 */
-#include <algorithm>
-#include "include/nescadata.h"
 bool contains_word(const std::string& word, const std::string& sentence)
 {
   std::string lowerWord = word;
@@ -197,6 +199,13 @@ bool contains_word(const std::string& word, const std::string& sentence)
   }
 
   return 0;
+}
+
+
+bool applyregex(const std::string &pat, const std::string &txt)
+{
+  std::regex re(pat);
+  return std::regex_search(txt, re);
 }
 
 std::string strtypefind(int find)
@@ -220,6 +229,7 @@ NESCAFINDRESULT NESCAFIND::fileprobe(NESCATARGET *target, const std::string &nod
   NESCAFINDLINE tmpres;
   NESCAFINDRESULT res;
   size_t o;
+  bool ok;
 
   if (!f)
     return {};
@@ -231,17 +241,26 @@ NESCAFINDRESULT NESCAFIND::fileprobe(NESCATARGET *target, const std::string &nod
 
   for (o=0;o<resbuf.length();o++) {
     if (resbuf[o]==';'&&resbuf[(o-1)]!='\\') {
+      ok=0;
       tmpres=lineget(tmp);
       tmp.clear();
-      if (contains_word(tmpres.node, node)) {
-        if (find==-1||tmpres.find==find) {
-          res.info=tmpres.info;
-          res.bruteforce=tmpres.bruteforce;
-          res.ok=1;
-          target->add_dbres(res.info,
-            strtypefind(find));
-          return res;
+
+      if (find==-1||tmpres.find==find) {
+        if (tmpres.regex) {
+          if (applyregex(tmpres.node, node))
+            ok=1;
         }
+        else if (contains_word(tmpres.node, node))
+          ok=1;
+      }
+
+      if (ok) {
+        res.info=tmpres.info;
+        res.bruteforce=tmpres.bruteforce;
+        res.ok=1;
+        target->add_dbres(res.info,
+        strtypefind(find));
+        return res;
       }
       continue;
     }
