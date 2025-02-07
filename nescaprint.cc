@@ -202,11 +202,13 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok, bool cut)
         putchar(' ');
     }
   }
-  if (target->get_num_port()>0||target->check_service()
-    ||target->get_num_dbres()>0) {
-    putchar('\n');
-    putchar('\n');
+  putchar('\n');
+  if (target->get_num_port()>0) {
+    if (((onlyok&&target->openports())||!onlyok))
+      putchar('\n');
   }
+  else if (target->check_service()||target->get_num_dbres()>0)
+    putchar('\n');
   if (target->get_num_port()>0) {
     target->removedublports();
     if (onlyok&&!target->openports())
