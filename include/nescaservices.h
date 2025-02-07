@@ -78,9 +78,10 @@ class NESCAPROCESSING
   std::map<NESCATARGET*, std::vector<int>> targets;
   std::vector<NESCAPROCESSINGCORPUS> methods;
 
-  void INIT(NESCADATA *ncsdata);
+  void INIT(NESCADATA *ncsdata, int service);
   void EXECMETHOD(NESCATARGET *target, std::vector<int> ports,
     NESCADATA *ncsdata);
+  void NULLVARS(void);
   void EXEC(NESCADATA *ncsdata);
 
 public:

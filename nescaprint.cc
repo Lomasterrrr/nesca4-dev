@@ -458,8 +458,11 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -dhex <hex>: append a custom payload to sent packet\n";
   std::cout << "  -dstr <str>: append a custom ASCII string to sent packets\n";
   std::cout << "  -ttl <num>: set Time To Live\n";
-  std::cout << "  -off <hex>: set fragmentation offset\n";
+  std::cout << "  -win <num>: set your TCP window size, default 1024\n";
+  std::cout << "  -ackn <num>: set TCP acknowledgment number\n";
+  std::cout << "  -off <flag1[/flag2]...,>: set fragmentation OFFset: df,mf,rf\n";
   std::cout << "  -ipopt <hex>: set ip options to packet\n";
+  std::cout << "  -badsum: send packets with bodus checksum\n";
   std::cout << "PINGER\n";
   std::cout << "  -ps, -pa, -py, -pu <ports>: use SYN/ACK/UDP/SCTP ping.\n";
   std::cout << "  -pr, -pe, -pi, -pm: use ARP or ICMP ping ECHO/INFO/TIMESTAMP\n";
@@ -485,7 +488,6 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -v: display all verbose information\n";
   std::cout << "  -html <filepath>: save output in html format\n";
   std::cout << "  -cfg <path>: set your config file for opts\n";
-  std::cout << "  -badsum: send packets with bodus checksum\n";
   std::cout << "  -help: display this menu and exit\n";
   std::cout << "EXAMPLES:\n";
   std::cout << "  ./nesca4 google.com -p 80,443 -syn -pe -v\n";

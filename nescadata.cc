@@ -111,6 +111,8 @@ struct option longopts[]={
   {"detal", 0, 0, IDOPT_DETAL},
   {"v", 0, 0, IDOPT_V},
   {"html", 1, 0, IDOPT_HTML},
+  {"win", 1, 0, IDOPT_WIN},
+  {"ackn", 1, 0, IDOPT_ACKN},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -179,6 +181,10 @@ void NESCAOPTS::opts_init(void)
   v_flag=0;
   html_flag=0;
   html_param="";
+  win_flag=0;
+  win_param="";
+  ackn_flag=0;
+  ackn_param="";
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -554,7 +560,8 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_DETAL:     set_detal_flag();                                               break;
     case IDOPT_V:         set_v_flag();                                                   break;
     case IDOPT_HTML:      set_html_flag();       set_html_param(val);                     break;
-
+    case IDOPT_WIN:       set_win_flag();        set_win_param(val);                      break;
+    case IDOPT_ACKN:      set_ackn_flag();       set_ackn_param(val);                     break;
   }
 }
 
@@ -1160,7 +1167,6 @@ void NESCAOPTS::set_ttl_param(const std::string &ttl_param)
 }
 void NESCAOPTS::set_off_param(const std::string &off_param)
 {
-  /* TODO */
   this->off_param=off_param;
 }
 void NESCAOPTS::set_ipopt_param(const std::string &ipopt_param)
@@ -1589,6 +1595,33 @@ void NESCAOPTS::set_html_param(const std::string &html_param) { this->html_param
 std::string NESCAOPTS::get_html_param(void) { return this->html_param; }
 void NESCAOPTS::set_html_flag(void) { this->html_flag=1; }
 bool NESCAOPTS::check_html_flag(void) { return this->html_flag; }
+
+
+/*
+ * -win <win_param>
+ */
+void NESCAOPTS::set_win_param(const std::string &win_param)
+{
+  if (std::stoi(win_param)>USHRT_MAX)
+    this->ncsprint->error("please set win in this range (0-65535), \"" + win_param + "\"");
+  this->win_param=win_param;
+}
+std::string NESCAOPTS::get_win_param(void) { return this->win_param; }
+void NESCAOPTS::set_win_flag(void) { this->win_flag=1; }
+bool NESCAOPTS::check_win_flag(void) { return this->win_flag; }
+
+
+/*
+ * -ackn <ackn_param>
+ */
+void NESCAOPTS::set_ackn_param(const std::string &ackn_param) {
+  if (std::stoul(ackn_param)>UINT_MAX)
+    this->ncsprint->error("please set ack in this range (0-4294967295), \"" + ackn_param + "\"");
+  this->ackn_param=ackn_param;
+}
+std::string NESCAOPTS::get_ackn_param(void) { return this->ackn_param; }
+void NESCAOPTS::set_ackn_flag(void) { this->ackn_flag=1; }
+bool NESCAOPTS::check_ackn_flag(void) { return this->ackn_flag=1; }
 
 
 /*

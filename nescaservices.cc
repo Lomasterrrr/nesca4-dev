@@ -37,6 +37,11 @@
 #include <vector>
 #include <string.h>
 
+#define ___VERBOSE \
+  if (ncsdata->opts.check_stats_flag())\
+    std::cout << "NESCASERVICES EXEC " << __FUNCTION__ <<\
+      "()" << std::endl
+
 void NESCAPROCESSINGCORPUS::__exec_check(NESCATARGET *target,
   int port, long long timeout, NESCADATA *ncsdata, size_t num)
 {
@@ -67,6 +72,7 @@ void NESCAPROCESSINGCORPUS::exec(NESCATARGET *target,
     __exec_method(target, port, timeout, ncsdata, i);
 }
 */
+
 void NESCAPROCESSINGCORPUS::exec(NESCATARGET *target,
   int port, long long timeout, NESCADATA *ncsdata)
 {
@@ -106,36 +112,6 @@ _try:
   }
 }
 
-/*
-std::map<NESCATARGET*, std::vector<int>>
-forprobe(NESCADATA *ncsdata)
-{
-  std::map<NESCATARGET*, std::vector<int>> res;
-  std::vector<int> ports;
-  NESCAPORT p;
-  bool yes;
-  size_t i;
-
-  for (const auto &t:ncsdata->targets) {
-    for (i=yes=0;i<t->get_num_port();i++) {
-      for (const auto&p:ncsdata->opts.get_s_param()) {
-        NESCAPORT pp=t->get_port(i);
-        if (pp.port==p.port&&isokport(&pp)) {
-          ports.push_back(pp.port);
-          yes=1;
-        }
-      }
-    }
-    if (yes) {
-      res[t]=ports;
-      ports.clear();
-    }
-  }
-
-  return res;
-}
-*/
-
 std::map<NESCATARGET*, std::vector<int>>
 forprobe(NESCADATA *ncsdata, int service)
 {
@@ -149,7 +125,8 @@ forprobe(NESCADATA *ncsdata, int service)
     for (i=yes=0;i<t->get_num_port();i++) {
       for (const auto&p:ncsdata->opts.get_s_param()) {
         NESCAPORT pp=t->get_port(i);
-        if (pp.port==p.port&&isokport(&pp)&&p.proto==service) {
+        if (pp.port==p.port&&isokport(&pp)
+            &&p.proto==service) {
           ports.push_back(pp.port);
           yes=1;
         }
@@ -164,32 +141,31 @@ forprobe(NESCADATA *ncsdata, int service)
   return res;
 }
 
-void NESCAPROCESSING::INIT(NESCADATA *ncsdata)
+void NESCAPROCESSING::INIT(NESCADATA *ncsdata, int service)
 {
-  this->methods.clear();
-
-  /* HTTP */
-  NESCAPROCESSINGCORPUS http;
-  http.setcheck(http_chk_0);
-  http.setmethod(http_m_htmlredir);
-  this->methods.push_back(http);
-
-  /* FTP */
-  NESCAPROCESSINGCORPUS ftp;
-  ftp.setcheck(ftp_chk_0);
-  this->methods.push_back(ftp);
+  switch (service) {
+    case S_HTTP: {
+      NESCAPROCESSINGCORPUS http;
+      http.setcheck(http_chk_0);
+      http.setmethod(http_m_htmlredir);
+      this->methods.push_back(http);
+      return;
+    }
+    case S_FTP: {
+      NESCAPROCESSINGCORPUS ftp;
+      ftp.setcheck(ftp_chk_0);
+      this->methods.push_back(ftp);
+      return;
+    }
+  }
 }
 
 void NESCAPROCESSING::EXECMETHOD(NESCATARGET *target,
   std::vector<int> ports, NESCADATA *ncsdata)
 {
-  for (auto&m:this->methods) {
+  for (auto&m:this->methods)
     for (const auto&p:ports)
-      m.exec(target,p,to_ns(1000),ncsdata);
-    if (ncsdata->opts.check_stats_flag())
-      std::cout << "NESCASERVICES for " << targets.size()
-        <<" targets on service\n";
-  }
+      m.exec(target,p,to_ns(500),ncsdata);
 }
 
 void NESCAPROCESSING::EXEC(NESCADATA *ncsdata)
@@ -217,15 +193,21 @@ void NESCAPROCESSING::EXEC(NESCADATA *ncsdata)
     future.get();
 }
 
+void NESCAPROCESSING::NULLVARS(void)
+{
+  this->methods.clear();
+  this->targets.clear();
+}
+
 NESCAPROCESSING::NESCAPROCESSING(NESCADATA *ncsdata)
 {
   size_t i;
-  (void)INIT(ncsdata);
   for (i=0;i<S_NUM;i++) {
-    this->targets.clear();
+    (void)NULLVARS();
     this->targets=forprobe(ncsdata,i);
     if (targets.empty())
-      return;
+      continue;
+    (void)INIT(ncsdata, i);
     (void)EXEC(ncsdata);
   }
 }
@@ -362,6 +344,8 @@ bool http_m_htmlredir(NESCATARGET *target, int port,
 {
   struct http_request r;
 
+  ___VERBOSE;
+
   http_init_req(&r, "GET", "", "", 0, "/", 0, 0);
   http_add_hdr(&r, "User-Agent", "oldteam");
   http_add_hdr(&r, "Connection", "close");
@@ -375,6 +359,7 @@ bool http_m_htmlredir(NESCATARGET *target, int port,
 bool http_chk_0(NESCATARGET *target, int port,
   long long timeout, NESCADATA *ncsdata)
 {
+  ___VERBOSE;
   return 1;
 }
 
@@ -387,6 +372,8 @@ bool ftp_chk_0(NESCATARGET *target, int port,
   size_t pos;
   bool res=0;
   int ret;
+
+  ___VERBOSE;
 
   gettimeofday(&s, NULL);
   ret=sock_session(target->get_mainip().c_str(), port,
@@ -415,4 +402,5 @@ bool ftp_chk_0(NESCATARGET *target, int port,
 
   return res;
 }
+#undef ___VERBOSE
 

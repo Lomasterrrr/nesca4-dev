@@ -24,6 +24,10 @@
 
 
 #include "include/nescaengine.h"
+#include "libncsnet/ncsnet/ip.h"
+#include "libncsnet/ncsnet/ip4addr.h"
+#include "libncsnet/ncsnet/tcp.h"
+#include <cstdlib>
 
 /* мутэкс для остановки приема */
 static std::mutex stoprecv;
@@ -962,10 +966,11 @@ void NESCAINIT::ni_ethprobe(NESCAPROBE *probe, NESCATARGET *target,
 void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
     NESCADATA *ncsdata, NESCAMETHOD *ncsmethod)
 {
-  u8 *res=NULL, *ipopts=NULL, off_[2]={0,64/* df */};
-  size_t ipoptslen=0, offlen=0;
+  u8 *res=NULL, *ipopts=NULL;
+  size_t ipoptslen=0;
+  std::string tmp,tok;
   ip4_t src, dst;
-  u16 *off;
+  u16 off=IP4_DF;
   int ttl;
 
   ip4t_pton(target->get_mainip().c_str(), &dst);
@@ -981,12 +986,21 @@ void NESCAINIT::ni_iprobe(NESCAPROBE *probe, NESCATARGET *target,
   /* Пользователь решил что он умнее и укажет свой флаг,
    * но это дойстойно. */
   if (ncsdata->opts.check_off_flag()) {
-    hex_atoh(ncsdata->opts.get_off_param().data(),
-      off_, offlen);
-    off=(u16*)off_;
+    off=0;
+    tmp=ncsdata->opts.get_off_param();
+    std::stringstream ss(tmp);
+    for (;std::getline(ss, tok, '/');) {
+      if (tok=="df"||tok=="DF")
+        off|=IP4_DF;
+      else if (tok=="mf"||tok=="MF")
+        off|=IP4_MF;
+      else if (tok=="rf"||tok=="RF"||
+          tok=="evil"||tok=="EVIL")
+        off|=IP4_RF;
+    }
   }
 
-  res=ip4_build(src, dst, ncsmethod->proto, ttl, random_u16(), 0, *off,
+  res=ip4_build(src, dst, ncsmethod->proto, ttl, random_u16(), 0, off,
     ipopts, ipoptslen, probe->probe, probe->probelen, &probe->probelen);
   if (!res)
     return;
@@ -1093,6 +1107,8 @@ void NESCAINIT::ni_tcprobe(NESCAPROBE *probe, NESCATARGET *target,
   size_t datalen=0;
   u8 *data=NULL;
   u8 flags=0;
+  u16 window=1024;
+  u32 ack=0;
   ip4_t tmp;
 
   probe->filter.chk=random_u32();
@@ -1125,9 +1141,12 @@ void NESCAINIT::ni_tcprobe(NESCAPROBE *probe, NESCATARGET *target,
     case M_TCP_NULL_SCAN:
       break;
   }
-
-  probe->probe=tcp_build((u16)probe->filter.srcport, port, (u32)probe->filter.chk, 0, 0,
-    flags, 1024, 0, NULL, 0, data, datalen, &probe->probelen);
+  if (ncsdata->opts.check_win_flag())
+    window=atoi(ncsdata->opts.get_win_param().c_str());
+  if (ncsdata->opts.check_ackn_flag())
+    ack=atoll(ncsdata->opts.get_ackn_param().c_str());
+  probe->probe=tcp_build((u16)probe->filter.srcport, port, (u32)probe->filter.chk, ack, 0,
+    flags, window, 0, NULL, 0, data, datalen, &probe->probelen);
   if (data)
     free(data);
 

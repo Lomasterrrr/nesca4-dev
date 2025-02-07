@@ -117,6 +117,8 @@
 #define IDOPT_DETAL     53
 #define IDOPT_V         54
 #define IDOPT_HTML      55
+#define IDOPT_WIN       56
+#define IDOPT_ACKN      57
 
 #define SPLITOPT_DEL   ','
 
@@ -288,6 +290,12 @@ class NESCAOPTS
 
   bool ipopt_flag;
   std::string ipopt_param;
+
+  bool win_flag;
+  std::string win_param;
+
+  bool ackn_flag;
+  std::string ackn_param;
 
   bool badsum_flag;
 
@@ -547,11 +555,19 @@ public:
   bool        check_detal_flag(void);
   void        set_v_flag(void);
   bool        check_v_flag(void);
-
   void        set_html_param(const std::string &html_param);
   std::string get_html_param(void);
   void        set_html_flag(void);
   bool        check_html_flag(void);
+  void        set_win_param(const std::string &win_param);
+  std::string get_win_param(void);
+  void        set_win_flag(void);
+  bool        check_win_flag(void);
+
+  void        set_ackn_param(const std::string &ackn_param);
+  std::string get_ackn_param(void);
+  void        set_ackn_flag(void);
+  bool        check_ackn_flag(void);
 };
 
 
