@@ -113,6 +113,8 @@ struct option longopts[]={
   {"html", 1, 0, IDOPT_HTML},
   {"win", 1, 0, IDOPT_WIN},
   {"ackn", 1, 0, IDOPT_ACKN},
+  {"dbpath", 1, 0, IDOPT_DBPATH},
+  {"n-db", 0, 0, IDOPT_N_DB},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -185,6 +187,9 @@ void NESCAOPTS::opts_init(void)
   win_param="";
   ackn_flag=0;
   ackn_param="";
+  dbpath_flag=0;
+  dbpath_param="";
+  n_db_flag=0;
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -282,6 +287,28 @@ void NESCATARGET::add_service(NESCAPORT *port, int service,
   res.init=1;
 
   port->services.push_back(res);
+}
+
+void NESCATARGET::add_dbres(const std::string &info, const std::string &find)
+{
+  NESCADBRES res;
+  if (info.empty())
+    return;
+  res.info=info;
+  res.find=find;
+  this->dbresults.push_back(res);
+}
+
+size_t NESCATARGET::get_num_dbres(void)
+{
+  return this->dbresults.size();
+}
+
+NESCADBRES NESCATARGET::get_dbres(size_t id)
+{
+  if (id<=this->dbresults.size())
+    return this->dbresults.at(id);
+  return {};
 }
 
 void NESCATARGET::add_info_service(NESCAPORT *port, int service,
@@ -562,6 +589,8 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_HTML:      set_html_flag();       set_html_param(val);                     break;
     case IDOPT_WIN:       set_win_flag();        set_win_param(val);                      break;
     case IDOPT_ACKN:      set_ackn_flag();       set_ackn_param(val);                     break;
+    case IDOPT_DBPATH:    set_dbpath_flag();     set_dbpath_param(val);                   break;
+    case IDOPT_N_DB:      set_n_db_flag();                                                break;
   }
 }
 
@@ -1622,6 +1651,22 @@ void NESCAOPTS::set_ackn_param(const std::string &ackn_param) {
 std::string NESCAOPTS::get_ackn_param(void) { return this->ackn_param; }
 void NESCAOPTS::set_ackn_flag(void) { this->ackn_flag=1; }
 bool NESCAOPTS::check_ackn_flag(void) { return this->ackn_flag=1; }
+
+
+/*
+ * -dbpath <dbpath_param>
+ */
+void NESCAOPTS::set_dbpath_param(const std::string &dbpath_param) { this->dbpath_param=dbpath_param; }
+std::string NESCAOPTS::get_dbpath_param(void) { return this->dbpath_param; }
+void NESCAOPTS::set_dbpath_flag(void) { this->dbpath_flag=1; }
+bool NESCAOPTS::check_dbpath_flag(void) { return this->dbpath_flag; }
+
+
+/*
+ * -n-db
+ */
+void NESCAOPTS::set_n_db_flag(void) { this->n_db_flag=1; }
+bool NESCAOPTS::check_n_db_flag(void) { return this->n_db_flag; }
 
 
 /*

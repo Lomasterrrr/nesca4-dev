@@ -63,7 +63,6 @@ u8 strmethod(int m)
   return '?';
 }
 
-#define DEFAULT_SERVICES_PATH "resources/nesca-services"
 
 std::string is_service(NESCAPORT *port)
 {
@@ -167,7 +166,6 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok, bool cut)
 
   if (onlyok&&!target->isok())
     return;
-
   methodstr="'.";
   if (target->get_num_time()>0)
     for (i=0;i<target->get_num_time();i++)
@@ -204,7 +202,11 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok, bool cut)
         putchar(' ');
     }
   }
-  putchar('\n');
+  if (target->get_num_port()>0||target->check_service()
+    ||target->get_num_dbres()>0) {
+    putchar('\n');
+    putchar('\n');
+  }
   if (target->get_num_port()>0) {
     target->removedublports();
     if (onlyok&&!target->openports())
@@ -218,7 +220,7 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok, bool cut)
     }
     block.pop_back();
     if (!block.empty()) {
-      std::cout << "\n  ports  ";
+      std::cout << "  ports  ";
       std::cout << block;
     }
     putchar('\n');
@@ -240,6 +242,13 @@ void NESCAPRINT::nescatarget(NESCATARGET *target, bool onlyok, bool cut)
             putchar('\n');
         }
       }
+    }
+  }
+  if (target->get_num_dbres()>0) {
+    for (j=0;j<target->get_num_dbres();j++) {
+      NESCADBRES tmp=target->get_dbres(j);
+      std::cout << "  db(" << tmp.find << ")  " <<
+        tmp.info << std::endl;;
     }
   }
 }
@@ -483,6 +492,9 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "SERVICES\n";
   std::cout << "  -s <ports>: set ports for service,\n    Ex: -s http:40-50,ftp:3,rvi:33,10-15\n";
   std::cout << "  -detal: do not abbreviate service information\n";
+  std::cout << "DATABASE\n";
+  std::cout << "  -dbpath <path>: set your nesca database path\n";
+  std::cout << "  -n-db: skip or off nesca database scanning\n";
   std::cout << "OTHER\n";
   std::cout << "  -n: no resolv, skip resolution dns names\n";
   std::cout << "  -v: display all verbose information\n";
@@ -728,12 +740,19 @@ skip:
       }
     }
   }
-
+  if (target->get_num_dbres()>0) {
+    for (j=0;j<target->get_num_dbres();j++) {
+      NESCADBRES tmp=target->get_dbres(j);
+      block="";
+      block+="db("+tmp.find+")  ";
+      nh_addtobuf("  "+block+"<span class=\"info\">"+
+        cutinfo(tmp.info, cut)+"</span>;");
+    }
+  }
   if (details) {
     nh_addtobuf("    </pre>");
     nh_addtobuf("    </details>");
   }
-
   nh_addtobuf("    </div>");
   NH_CLOSE();
 }

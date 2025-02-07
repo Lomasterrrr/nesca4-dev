@@ -147,7 +147,7 @@ void NESCAPROCESSING::INIT(NESCADATA *ncsdata, int service)
     case S_HTTP: {
       NESCAPROCESSINGCORPUS http;
       http.setcheck(http_chk_0);
-      http.setmethod(http_m_htmlredir);
+      http.setmethod(http_m_htmlredirtitle);
       this->methods.push_back(http);
       return;
     }
@@ -298,6 +298,7 @@ void send_http(struct http_request *r, NESCADATA *ncsdata, NESCATARGET *target,
   u8                    newbuf[HTTP_BUFLEN];
   char                  respath[HTTP_BUFLEN];
   char                  reshost[HTTP_BUFLEN];
+  char                  title[HTTP_BUFLEN];
   std::string           res, dns;
   struct timeval        s, e;
   size_t                pos;
@@ -335,17 +336,20 @@ void send_http(struct http_request *r, NESCADATA *ncsdata, NESCATARGET *target,
     res=clearbuf(res);
     target->add_info_service(target->get_real_port(pos),
         S_HTTP, res, "html");
+    http_qprc_title(res.c_str(), title, sizeof(title));
+    if (!std::string(title).empty()&&strcmp(title,"n/a"))
+      target->add_info_service(target->get_real_port(pos),
+          S_HTTP, title, "title");
   }
   http_free_res(&response);
 }
 
-bool http_m_htmlredir(NESCATARGET *target, int port,
+bool http_m_htmlredirtitle(NESCATARGET *target, int port,
   long long timeout, NESCADATA *ncsdata)
 {
   struct http_request r;
 
   ___VERBOSE;
-
   http_init_req(&r, "GET", "", "", 0, "/", 0, 0);
   http_add_hdr(&r, "User-Agent", "oldteam");
   http_add_hdr(&r, "Connection", "close");
@@ -374,7 +378,6 @@ bool ftp_chk_0(NESCATARGET *target, int port,
   int ret;
 
   ___VERBOSE;
-
   gettimeofday(&s, NULL);
   ret=sock_session(target->get_mainip().c_str(), port,
     timeout, receive, sizeof(receive));

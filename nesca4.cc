@@ -23,6 +23,7 @@
 */
 
 #include "include/nescadata.h"
+#include "include/nescafind.h"
 #include "include/nescaservices.h"
 #include "include/nescaprint.h"
 #include "include/nescaengine.h"
@@ -99,6 +100,9 @@ int nesca4(void)
       _NESCAENGINE_ scan(&ncsdata, 0);
     nescastatus("SERVICE SCANNING");
     NESCAPROCESSING proc(&ncsdata);
+    nescastatus("DATABASE SCANNING");
+    if (!ncsdata.opts.check_n_db_flag())
+      NESCAFIND find(&ncsdata);
     running=0;
     updater.join();
     ncsprint.PRINTTARGETS(&ncsdata);

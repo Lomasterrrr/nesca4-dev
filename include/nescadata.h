@@ -119,6 +119,8 @@
 #define IDOPT_HTML      55
 #define IDOPT_WIN       56
 #define IDOPT_ACKN      57
+#define IDOPT_DBPATH    58
+#define IDOPT_N_DB      59
 
 #define SPLITOPT_DEL   ','
 
@@ -132,6 +134,9 @@
 #define S_NUM           2
 #define S_HTTP          0
 #define S_FTP           1
+
+#define DEFAULT_SERVICES_PATH "resources/nesca-services"
+#define DEFAULT_DATABASE_PATH "resources/nesca-database"
 
 class NESCADATA;
 typedef __uint128_t u128;
@@ -164,8 +169,8 @@ struct NESCAINFO {
  */
 struct NESCASERVICE {
   std::vector<NESCAINFO> info;
-  int service;
   NESCATIME rtt;
+  int service;
   bool init;
 };
 
@@ -181,6 +186,14 @@ struct NESCAPORT {
 };
 
 
+/*
+ * A structure to represent the result of database detection.
+ */
+struct NESCADBRES {
+  std::string info, find;
+};
+
+
 
 
 /*
@@ -191,12 +204,13 @@ struct NESCAPORT {
  */
 class NESCATARGET
 {
-  std::string              mainip;
-  std::vector<std::string> ips, dns;
-  std::vector<NESCAPORT>   ports;
-  std::vector<NESCATIME>   rtts;
-  bool                     ip6, ok=0;
-  std::string              mac; /* from arp ping */
+  std::string               mainip;
+  std::vector<std::string>  ips, dns;
+  std::vector<NESCAPORT>    ports;
+  std::vector<NESCATIME>    rtts;
+  std::vector<NESCADBRES>   dbresults;
+  bool                      ip6, ok=0;
+  std::string               mac; /* from arp ping */
 
 public:
   void add_service(NESCAPORT *port, int service,
@@ -233,6 +247,9 @@ public:
   void set_no_ok(void);
   bool isok(void);
   void removedublports(void);
+  void add_dbres(const std::string &info, const std::string &find);
+  size_t get_num_dbres(void);
+  NESCADBRES get_dbres(size_t id);
 };
 
 struct _cfgopt {
@@ -287,6 +304,9 @@ class NESCAOPTS
 
   bool off_flag;
   std::string off_param;
+
+  bool dbpath_flag;
+  std::string dbpath_param;
 
   bool ipopt_flag;
   std::string ipopt_param;
@@ -369,6 +389,8 @@ class NESCAOPTS
 
   bool html_flag;
   std::string html_param;
+
+  bool n_db_flag;
 
   std::vector<_cfgopt> opts;
   std::string cfgpath;
@@ -563,11 +585,18 @@ public:
   std::string get_win_param(void);
   void        set_win_flag(void);
   bool        check_win_flag(void);
-
   void        set_ackn_param(const std::string &ackn_param);
   std::string get_ackn_param(void);
   void        set_ackn_flag(void);
   bool        check_ackn_flag(void);
+
+  void        set_dbpath_param(const std::string &dbpath_param);
+  std::string get_dbpath_param(void);
+  void        set_dbpath_flag(void);
+  bool        check_dbpath_flag(void);
+
+  void        set_n_db_flag(void);
+  bool        check_n_db_flag(void);
 };
 
 

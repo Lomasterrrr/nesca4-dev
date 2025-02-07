@@ -1,6 +1,6 @@
 TARGET    = nesca4
-CC        = @CXX@
-CFLAGS    = @CFLAGS@ @OCFLAGS@
+CC        = g++
+CFLAGS    = -Wall -g -O3
 SRCS      = nesca4.cc nescaprint.cc nescadata.cc nescaengine.cc nescaservices.cc nescafind.cc
 OBJS      = $(SRCS:.cc=.o)
 LIBNCSNET = libncsnet/libncsnet.a
