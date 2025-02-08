@@ -194,6 +194,17 @@ struct NESCADBRES {
 };
 
 
+/*
+ * A structure for storing information that is needed to bruteforce
+ * the service.
+ */
+struct NESCABRUTEI
+{
+  int service, port;
+  std::string other;
+};
+
+
 
 
 /*
@@ -211,6 +222,7 @@ class NESCATARGET
   std::vector<NESCADBRES>   dbresults;
   bool                      ip6, ok=0;
   std::string               mac; /* from arp ping */
+  std::vector<NESCABRUTEI>  bruteforce;
 
 public:
   void add_service(NESCAPORT *port, int service,
@@ -245,6 +257,11 @@ public:
   size_t get_type_time(size_t id);
   void set_ok(void);
   void set_no_ok(void);
+
+  void set_bruteforce(int service, int port, const std::string &other);
+  NESCABRUTEI get_bruteforce(size_t id);
+  size_t get_num_bruteforce(void);
+
   bool isok(void);
   void removedublports(void);
   void add_dbres(const std::string &info, const std::string &find);

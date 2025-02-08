@@ -326,6 +326,27 @@ void NESCATARGET::add_info_service(NESCAPORT *port, int service,
   _service->info.push_back(i);
 }
 
+void NESCATARGET::set_bruteforce(int service, int port, const std::string &other)
+{
+  NESCABRUTEI i;
+  i.other=other;
+  i.service=service;
+  i.port=port;
+  this->bruteforce.push_back(i);
+}
+
+NESCABRUTEI NESCATARGET::get_bruteforce(size_t id)
+{
+  if (id>bruteforce.size())
+    return {};
+  return this->bruteforce.at(id);
+}
+
+size_t NESCATARGET::get_num_bruteforce(void)
+{
+  return this->bruteforce.size();
+}
+
 NESCASERVICE NESCATARGET::get_service(NESCAPORT *port, int service)
 {
   for (auto &s:port->services)

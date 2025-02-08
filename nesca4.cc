@@ -27,6 +27,8 @@
 #include "include/nescaservices.h"
 #include "include/nescaprint.h"
 #include "include/nescaengine.h"
+#include "include/nescabrute.h"
+#include "libncsnet/ncsnet/utils.h"
 
 NESCAPRINT  ncsprint;
 NESCADATA   ncsdata;
@@ -103,6 +105,8 @@ int nesca4(void)
     nescastatus("DATABASE SCANNING");
     if (!ncsdata.opts.check_n_db_flag())
       NESCAFIND find(&ncsdata);
+    nescastatus("BRUTEFORCING");
+    NESCABRUTEFORCE(&ncsdata);
     running=0;
     updater.join();
     ncsprint.PRINTTARGETS(&ncsdata);

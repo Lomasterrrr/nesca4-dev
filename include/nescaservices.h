@@ -38,7 +38,6 @@
  * METHOD FUNCTIONS:
  *   bool <SERVICE>_m_<DATATYPE,...,>(...);
  */
-
 class NESCAPROCESSINGCORPUS
 {
   std::vector< std::function<bool(NESCATARGET *, int,

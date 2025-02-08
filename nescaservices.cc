@@ -401,6 +401,7 @@ bool ftp_chk_0(NESCATARGET *target, int port,
     target->add_service(target->get_real_port(pos), S_FTP, s, e);
     target->add_info_service(target->get_real_port(pos),
         S_FTP, tmp, "header");
+    target->set_bruteforce(S_FTP, port, "");
   }
 
   return res;
