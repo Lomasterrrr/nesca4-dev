@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     ncsprint.usage(argc, argv);
   ncsprint.run();
   ncsdata.opts.opts_init();
-  ncsdata.opts.cfg_apply("config/default.cfg", &ncsdata, &ncsprint);
+  ncsdata.opts.cfg_apply("resources/config/default.cfg", &ncsdata, &ncsprint);
   ncsdata.opts.args_apply(argc, argv, &ncsdata, &ncsprint);
   if (ncsdata.opts.check_cfg_flag()) {
     ncsdata.opts.cfg_apply(ncsdata.opts.get_cfg_param(), &ncsdata, &ncsprint);
