@@ -106,7 +106,8 @@ int nesca4(void)
     if (!ncsdata.opts.check_n_db_flag())
       NESCAFIND find(&ncsdata);
     nescastatus("BRUTEFORCING");
-    NESCABRUTEFORCE(&ncsdata);
+    if (!ncsdata.opts.check_n_brute_flag())
+      NESCABRUTEFORCE(&ncsdata);
     running=0;
     updater.join();
     ncsprint.PRINTTARGETS(&ncsdata);

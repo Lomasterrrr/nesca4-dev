@@ -115,6 +115,12 @@ struct option longopts[]={
   {"ackn", 1, 0, IDOPT_ACKN},
   {"dbpath", 1, 0, IDOPT_DBPATH},
   {"n-db", 0, 0, IDOPT_N_DB},
+  {"n-brute", 0, 0, IDOPT_N_BRUTE},
+  {"login", 1, 0, IDOPT_LOGIN},
+  {"pass", 1, 0, IDOPT_PASS},
+  {"wait-brute", 1, 0, IDOPT_WAIT_BRUTE},
+  {"delay-brute", 1, 0, IDOPT_DELAY_BRUTE},
+  {"threads-brute", 1, 0, IDOPT_THREADS_BRUTE},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -190,6 +196,17 @@ void NESCAOPTS::opts_init(void)
   dbpath_flag=0;
   dbpath_param="";
   n_db_flag=0;
+  n_brute_flag=0;
+  login_flag=0;
+  login_param="";
+  pass_flag=0;
+  pass_param="";
+  wait_brute_flag=0;
+  wait_brute_param="";
+  delay_brute_flag=0;
+  delay_brute_param="";
+  threads_brute_flag=0;
+  threads_brute_param="";
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -612,6 +629,12 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_ACKN:      set_ackn_flag();       set_ackn_param(val);                     break;
     case IDOPT_DBPATH:    set_dbpath_flag();     set_dbpath_param(val);                   break;
     case IDOPT_N_DB:      set_n_db_flag();                                                break;
+    case IDOPT_N_BRUTE:   set_n_brute_flag();                                             break;
+    case IDOPT_LOGIN:     set_login_flag();      set_login_param(val);                    break;
+    case IDOPT_PASS:      set_pass_flag();       set_pass_param(val);                     break;
+    case IDOPT_WAIT_BRUTE: set_wait_brute_flag();      set_wait_brute_param(val);         break;
+    case IDOPT_DELAY_BRUTE: set_delay_brute_flag();       set_delay_brute_param(val);     break;
+    case IDOPT_THREADS_BRUTE: set_threads_brute_flag(); set_threads_brute_param(val);     break;
   }
 }
 
@@ -1688,6 +1711,54 @@ bool NESCAOPTS::check_dbpath_flag(void) { return this->dbpath_flag; }
  */
 void NESCAOPTS::set_n_db_flag(void) { this->n_db_flag=1; }
 bool NESCAOPTS::check_n_db_flag(void) { return this->n_db_flag; }
+
+
+/*
+ * -n-brute
+ */
+void NESCAOPTS::set_n_brute_flag(void) { this->n_brute_flag=1; }
+bool NESCAOPTS::check_n_brute_flag(void) { return this->n_brute_flag; }
+
+
+/*
+ * -login <login_param>
+ * -pass <pass_param>
+ */
+void NESCAOPTS::set_login_param(const std::string &login_param) { this->login_param=login_param; }
+std::string NESCAOPTS::get_login_param(void) { return this->login_param; }
+void NESCAOPTS::set_login_flag(void) { this->login_flag=1; }
+bool NESCAOPTS::check_login_flag(void) { return this->login_flag; }
+void NESCAOPTS::set_pass_param(const std::string &pass_param) { this->pass_param=pass_param; }
+std::string NESCAOPTS::get_pass_param(void) { return this->pass_param; }
+void NESCAOPTS::set_pass_flag(void) { this->pass_flag=1; }
+bool NESCAOPTS::check_pass_flag(void) { return this->pass_flag; }
+
+
+/*
+ * -delay-brute <delay_brute_param>
+ */
+void NESCAOPTS::set_delay_brute_param(const std::string &delay_brute_param) { this->delay_brute_param=delay_brute_param; }
+std::string NESCAOPTS::get_delay_brute_param(void) { return this->delay_brute_param; }
+void NESCAOPTS::set_delay_brute_flag(void) { this->delay_brute_flag=1; }
+bool NESCAOPTS::check_delay_brute_flag(void) { return this->delay_brute_flag; }
+
+
+/*
+ * -wait-brute <wait_brute_param>
+ */
+void NESCAOPTS::set_wait_brute_param(const std::string &wait_brute_param) { this->wait_brute_param=wait_brute_param; }
+std::string NESCAOPTS::get_wait_brute_param(void) { return this->wait_brute_param; }
+void NESCAOPTS::set_wait_brute_flag(void) { this->wait_brute_flag=1; }
+bool NESCAOPTS::check_wait_brute_flag(void) { return this->wait_brute_flag; }
+
+
+/*
+ * -threads-brute <threads_brute_param>
+ */
+void NESCAOPTS::set_threads_brute_param(const std::string &threads_brute_param) { this->threads_brute_param=threads_brute_param; }
+std::string NESCAOPTS::get_threads_brute_param(void) { return this->threads_brute_param; }
+void NESCAOPTS::set_threads_brute_flag(void) { this->threads_brute_flag=1; }
+bool NESCAOPTS::check_threads_brute_flag(void) { return this->threads_brute_flag; }
 
 
 /*

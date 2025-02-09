@@ -25,7 +25,9 @@
 #include "include/nescabrute.h"
 #include "include/nescadata.h"
 #include "libncsnet/ncsnet/socket.h"
+#include "libncsnet/ncsnet/utils.h"
 #include <chrono>
+#include <fstream>
 #include <net/if.h>
 #include <thread>
 
@@ -132,7 +134,8 @@ NESCABRUTE::NESCABRUTE(size_t threads, const std::string &ip, const std::string 
   size_t i=0, realthreads=0;
 
   realthreads=((threads>(login.size()*pass.size())))?
-    login.size()*pass.size()/2:threads;
+    (login.size()*pass.size()/* /2 */):threads;
+
   if (!(init(realthreads, ip, port, service, timeout, login, pass)))
     return;
   NESCAPOOL pool(realthreads);
@@ -186,26 +189,63 @@ std::string NESCABRUTE::GETRESULTINNESCASTYLE(void)
   return "";
 }
 
-std::vector <std::string> l={"1234","admin","root"},
-  p={"root","12345","1111","admin"};
+static std::vector<std::string>
+  l={"root", "admin", "12345"},
+  p={"root", "12345", "1111", "admin", "1234"};
+
+static void INIT_NESCABRUTEFORCE(NESCADATA *ncsdata)
+{
+  std::string lpath,ppath, tmp;
+  lpath="resources/login.txt";
+  ppath="resources/pass.txt";
+  if (ncsdata->opts.check_login_flag())
+    lpath=ncsdata->opts.get_login_param();
+  if (ncsdata->opts.check_pass_flag())
+    ppath=ncsdata->opts.get_pass_param();
+  std::ifstream f(lpath);
+  std::ifstream f1(ppath);
+  if (!f||!f1)
+    return;
+  l.clear(),p.clear();
+  for (;std::getline(f, tmp);)
+    l.push_back(tmp);
+  for (;std::getline(f1, tmp);)
+    p.push_back(tmp);
+  f.close();
+  f1.close();
+}
 
 void NESCABRUTEFORCE(NESCADATA *ncsdata)
 {
-  size_t i, pos;
+  long long timeout, delay;
+  size_t i, pos, threads;
+
+  INIT_NESCABRUTEFORCE(ncsdata);
+
+  timeout=(ncsdata->opts.check_wait_brute_flag())?
+    delayconv(ncsdata->opts.get_wait_brute_param().c_str()):-1;
+  delay=(ncsdata->opts.check_delay_brute_flag())?
+    delayconv(ncsdata->opts.get_delay_brute_param().c_str()):0;
+  threads=(ncsdata->opts.check_threads_brute_flag())?
+    std::stoi(ncsdata->opts.get_threads_brute_param()):5;
+
   for (const auto&t:ncsdata->targets) {
     if (t->get_num_bruteforce()<=0)
       continue;
     for (i=0;i<t->get_num_bruteforce();i++) {
       NESCABRUTEI tmp=t->get_bruteforce(i);
-      NESCABRUTE brute(5, t->get_mainip(), tmp.other,
-        tmp.port, -1, tmp.service, 0, l,p);
-      if (!brute.LOGIN().empty()&&!brute.PASS().empty()) {
+
+      NESCABRUTE brute(threads, t->get_mainip(), tmp.other,
+        tmp.port, timeout, tmp.service, delay, l, p);
+
+      if (!brute.LOGIN().empty()&&!brute.PASS().empty()){
         for (pos=0;pos<t->get_num_port();pos++)
           if (t->get_port(pos).port==tmp.port)
             break;
         t->add_info_service(t->get_real_port(pos), tmp.service,
           brute.GETRESULTINNESCASTYLE(), "passwd");
       }
+
     }
 
   }

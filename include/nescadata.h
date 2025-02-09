@@ -121,6 +121,12 @@
 #define IDOPT_ACKN      57
 #define IDOPT_DBPATH    58
 #define IDOPT_N_DB      59
+#define IDOPT_N_BRUTE   60
+#define IDOPT_LOGIN     61
+#define IDOPT_PASS      62
+#define IDOPT_WAIT_BRUTE 63
+#define IDOPT_DELAY_BRUTE 64
+#define IDOPT_THREADS_BRUTE 65
 
 #define SPLITOPT_DEL   ','
 
@@ -257,11 +263,9 @@ public:
   size_t get_type_time(size_t id);
   void set_ok(void);
   void set_no_ok(void);
-
   void set_bruteforce(int service, int port, const std::string &other);
   NESCABRUTEI get_bruteforce(size_t id);
   size_t get_num_bruteforce(void);
-
   bool isok(void);
   void removedublports(void);
   void add_dbres(const std::string &info, const std::string &find);
@@ -339,6 +343,18 @@ class NESCAOPTS
   bool cfg_flag;
   std::string cfg_param;
 
+  bool login_flag;
+  std::string login_param;
+
+  bool pass_flag;
+  std::string pass_param;
+
+  bool wait_brute_flag;
+  std::string wait_brute_param;
+
+  bool delay_brute_flag;
+  std::string delay_brute_param;
+
   bool n_flag;
 
   bool n_ping_flag;
@@ -408,6 +424,11 @@ class NESCAOPTS
   std::string html_param;
 
   bool n_db_flag;
+
+  bool threads_brute_flag;
+  std::string threads_brute_param;
+
+  bool n_brute_flag;
 
   std::vector<_cfgopt> opts;
   std::string cfgpath;
@@ -606,14 +627,38 @@ public:
   std::string get_ackn_param(void);
   void        set_ackn_flag(void);
   bool        check_ackn_flag(void);
-
+  void        set_n_db_flag(void);
+  bool        check_n_db_flag(void);
   void        set_dbpath_param(const std::string &dbpath_param);
   std::string get_dbpath_param(void);
   void        set_dbpath_flag(void);
   bool        check_dbpath_flag(void);
+  void        set_login_param(const std::string &login_param);
+  std::string get_login_param(void);
+  void        set_login_flag(void);
+  bool        check_login_flag(void);
+  void        set_pass_param(const std::string &pass_param);
+  std::string get_pass_param(void);
+  void        set_pass_flag(void);
+  bool        check_pass_flag(void);
+  void        set_wait_brute_param(const std::string &wait_brute_param);
+  std::string get_wait_brute_param(void);
+  void        set_wait_brute_flag(void);
+  bool        check_wait_brute_flag(void);
 
-  void        set_n_db_flag(void);
-  bool        check_n_db_flag(void);
+  void        set_n_brute_flag(void);
+  bool        check_n_brute_flag(void);
+
+  void        set_delay_brute_param(const std::string &delay_brute_param);
+  std::string get_delay_brute_param(void);
+  void        set_delay_brute_flag(void);
+  bool        check_delay_brute_flag(void);
+
+  void        set_threads_brute_param(const std::string &threads_brute_param);
+  std::string get_threads_brute_param(void);
+  void        set_threads_brute_flag(void);
+  bool        check_threads_brute_flag(void);
+
 };
 
 
