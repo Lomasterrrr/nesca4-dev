@@ -127,6 +127,7 @@
 #define IDOPT_WAIT_BRUTE 63
 #define IDOPT_DELAY_BRUTE 64
 #define IDOPT_THREADS_BRUTE 65
+#define IDOPT_ADLER32   66
 
 #define SPLITOPT_DEL   ','
 
@@ -356,6 +357,8 @@ class NESCAOPTS
   std::string delay_brute_param;
 
   bool n_flag;
+
+  bool adler32_flag;
 
   bool n_ping_flag;
 
@@ -645,10 +648,8 @@ public:
   std::string get_wait_brute_param(void);
   void        set_wait_brute_flag(void);
   bool        check_wait_brute_flag(void);
-
   void        set_n_brute_flag(void);
   bool        check_n_brute_flag(void);
-
   void        set_delay_brute_param(const std::string &delay_brute_param);
   std::string get_delay_brute_param(void);
   void        set_delay_brute_flag(void);
@@ -658,6 +659,9 @@ public:
   std::string get_threads_brute_param(void);
   void        set_threads_brute_flag(void);
   bool        check_threads_brute_flag(void);
+
+  void        set_adler32_flag(void);
+  bool        check_adler32_flag(void);
 
 };
 

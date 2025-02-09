@@ -121,6 +121,7 @@ struct option longopts[]={
   {"wait-brute", 1, 0, IDOPT_WAIT_BRUTE},
   {"delay-brute", 1, 0, IDOPT_DELAY_BRUTE},
   {"threads-brute", 1, 0, IDOPT_THREADS_BRUTE},
+  {"adler32", 0, 0, IDOPT_ADLER32},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -207,6 +208,7 @@ void NESCAOPTS::opts_init(void)
   delay_brute_param="";
   threads_brute_flag=0;
   threads_brute_param="";
+  adler32_flag=0;
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -635,6 +637,7 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_WAIT_BRUTE: set_wait_brute_flag();      set_wait_brute_param(val);         break;
     case IDOPT_DELAY_BRUTE: set_delay_brute_flag();       set_delay_brute_param(val);     break;
     case IDOPT_THREADS_BRUTE: set_threads_brute_flag(); set_threads_brute_param(val);     break;
+    case IDOPT_ADLER32:   set_adler32_flag();                                             break;
   }
 }
 
@@ -1759,6 +1762,13 @@ void NESCAOPTS::set_threads_brute_param(const std::string &threads_brute_param) 
 std::string NESCAOPTS::get_threads_brute_param(void) { return this->threads_brute_param; }
 void NESCAOPTS::set_threads_brute_flag(void) { this->threads_brute_flag=1; }
 bool NESCAOPTS::check_threads_brute_flag(void) { return this->threads_brute_flag; }
+
+
+/*
+ * -adler32
+ */
+void NESCAOPTS::set_adler32_flag(void) { this->adler32_flag=1; }
+bool NESCAOPTS::check_adler32_flag(void) { return this->adler32_flag; }
 
 
 /*

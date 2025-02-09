@@ -259,7 +259,13 @@ NESCAFINDRESULT NESCAFIND::fileprobe(NESCATARGET *target, const std::string &nod
         res.bruteforce=tmpres.bruteforce;
         res.ok=1;
         target->add_dbres(res.info,
-        strtypefind(find));
+          strtypefind(find));
+        /*
+        if (res.bruteforce) {
+          target->set_bruteforce(, int port, const std::string &other)
+        }
+        */
+
         return res;
       }
       continue;

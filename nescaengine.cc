@@ -1241,8 +1241,10 @@ void NESCAINIT::ni_sctprobe(NESCAPROBE *probe, NESCATARGET *target,
       break;
   }
 
-  sctp_check(probe->probe, probe->probelen, 0,
+  sctp_check(probe->probe, probe->probelen,
+      ncsdata->opts.check_adler32_flag(),
       ncsdata->opts.check_badsum_flag());
+
   if (data)
     free(data);
 

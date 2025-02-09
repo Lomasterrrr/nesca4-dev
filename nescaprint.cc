@@ -474,6 +474,7 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -off <flag1[/flag2]...,>: set fragmentation OFFset: df,mf,rf\n";
   std::cout << "  -ipopt <hex>: set ip options to packet\n";
   std::cout << "  -badsum: send packets with bodus checksum\n";
+  std::cout << "  -adler32: use adler32 checksum for all SCTP packets\n";
   std::cout << "PINGER\n";
   std::cout << "  -ps, -pa, -py, -pu <ports>: use SYN/ACK/UDP/SCTP ping.\n";
   std::cout << "  -pr, -pe, -pi, -pm: use ARP or ICMP ping ECHO/INFO/TIMESTAMP\n";
