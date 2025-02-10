@@ -128,6 +128,7 @@
 #define IDOPT_DELAY_BRUTE 64
 #define IDOPT_THREADS_BRUTE 65
 #define IDOPT_ADLER32   66
+#define IDOPT_ONLYOPEN  67
 
 #define SPLITOPT_DEL   ','
 
@@ -378,6 +379,8 @@ class NESCAOPTS
   bool sn_flag;
 
   bool xmas_flag;
+
+  bool onlyopen_flag;
 
   bool fin_flag;
 
@@ -654,14 +657,16 @@ public:
   std::string get_delay_brute_param(void);
   void        set_delay_brute_flag(void);
   bool        check_delay_brute_flag(void);
+  void        set_adler32_flag(void);
+  bool        check_adler32_flag(void);
 
   void        set_threads_brute_param(const std::string &threads_brute_param);
   std::string get_threads_brute_param(void);
   void        set_threads_brute_flag(void);
   bool        check_threads_brute_flag(void);
 
-  void        set_adler32_flag(void);
-  bool        check_adler32_flag(void);
+  void        set_onlyopen_flag(void);
+  bool        check_onlyopen_flag(void);
 
 };
 

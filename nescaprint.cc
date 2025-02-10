@@ -262,6 +262,8 @@ void NESCAPRINT::PRINTTARGETS(NESCADATA *ncsdata)
       ncsdata->targets.size() << " targets\n";
 
   for (const auto&t:ncsdata->targets) {
+    if (ncsdata->opts.check_onlyopen_flag()&&!t->openports())
+      continue;
     this->nescatarget(t, 1, ncsdata->opts.check_detal_flag());
     if (t->openports())
       putchar('\n');
@@ -504,10 +506,12 @@ void NESCAPRINT::usage(int argc, char **argv)
   std::cout << "  -threads-brute <num>: set your number threads\n";
   std::cout << "  -delay-brute <time>: set your special delay\n";
   std::cout << "  -n-brute: skip or off nesca bruteforcing\n";
-  std::cout << "OTHER\n";
-  std::cout << "  -n: no resolv, skip resolution dns names\n";
+  std::cout << "OUTPUT\n";
+  std::cout << "  -onlyopen: output information only if there are open ports\n";
   std::cout << "  -v: display all verbose information\n";
   std::cout << "  -html <filepath>: save output in html format\n";
+  std::cout << "OTHER\n";
+  std::cout << "  -n: no resolv, skip resolution dns names\n";
   std::cout << "  -cfg <path>: set your config file for opts\n";
   std::cout << "  -help: display this menu and exit\n";
   std::cout << "EXAMPLES:\n";
@@ -782,9 +786,13 @@ void NESCAHTML::NHTARGETS(NESCADATA *ncsdata)
     nh_setpath(ncsdata->opts.get_html_param());
     NH_OPEN(ncsdata);
   }
-  for (const auto&t:ncsdata->targets)
+  for (const auto&t:ncsdata->targets) {
+    if (ncsdata->opts.check_onlyopen_flag()
+      &&!t->openports())
+      continue;
     NH_ADD(t, ncsdata, onlyoktmp,
       ncsdata->opts.check_detal_flag());
+  }
 }
 
 void NESCAHTML::nh_setpath(const std::string &path) {

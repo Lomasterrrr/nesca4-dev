@@ -122,6 +122,7 @@ struct option longopts[]={
   {"delay-brute", 1, 0, IDOPT_DELAY_BRUTE},
   {"threads-brute", 1, 0, IDOPT_THREADS_BRUTE},
   {"adler32", 0, 0, IDOPT_ADLER32},
+  {"onlyopen", 0, 0, IDOPT_ONLYOPEN},
   {"s", 1, 0, IDOPT_S}
 };
 
@@ -209,6 +210,7 @@ void NESCAOPTS::opts_init(void)
   threads_brute_flag=0;
   threads_brute_param="";
   adler32_flag=0;
+  onlyopen_flag=0;
 }
 
 static bool is_valid_ipv4(const std::string &txt);
@@ -638,6 +640,7 @@ void NESCAOPTS::opts_apply(int rez, std::string val)
     case IDOPT_DELAY_BRUTE: set_delay_brute_flag();       set_delay_brute_param(val);     break;
     case IDOPT_THREADS_BRUTE: set_threads_brute_flag(); set_threads_brute_param(val);     break;
     case IDOPT_ADLER32:   set_adler32_flag();                                             break;
+    case IDOPT_ONLYOPEN:   set_onlyopen_flag();                                           break;
   }
 }
 
@@ -1769,6 +1772,13 @@ bool NESCAOPTS::check_threads_brute_flag(void) { return this->threads_brute_flag
  */
 void NESCAOPTS::set_adler32_flag(void) { this->adler32_flag=1; }
 bool NESCAOPTS::check_adler32_flag(void) { return this->adler32_flag; }
+
+
+/*
+ * -onlyopen
+ */
+void NESCAOPTS::set_onlyopen_flag(void) { this->onlyopen_flag=1; }
+bool NESCAOPTS::check_onlyopen_flag(void) { return this->onlyopen_flag; }
 
 
 /*
